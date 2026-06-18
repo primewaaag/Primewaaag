@@ -1,0 +1,118 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+}
+
+html {
+  background: linear-gradient(135deg, #020813 0%, #051a36 45%, #0d3561 80%, #17508a 100%) !important;
+  background-attachment: fixed !important;
+}
+
+body {
+  background: linear-gradient(135deg, #020813 0%, #051a36 45%, #0d3561 80%, #17508a 100%) !important;
+  background-attachment: fixed !important;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+  position: relative;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+
+
+/* Premium ambient light glows */
+.glow-blob-1 {
+  position: absolute;
+  top: -10%;
+  left: 5%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(147, 51, 234, 0.09) 0%, transparent 65%);
+  z-index: -10;
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+.glow-blob-2 {
+  position: absolute;
+  top: 40%;
+  right: -5%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.06) 0%, transparent 65%);
+  z-index: -10;
+  pointer-events: none;
+  filter: blur(70px);
+}
+
+.glow-blob-3 {
+  position: absolute;
+  bottom: -10%;
+  left: 10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 65%);
+  z-index: -10;
+  pointer-events: none;
+  filter: blur(65px);
+}
+
+/* Glassmorphism panel styling */
+.glass-panel {
+  background: rgba(15, 15, 20, 0.45);
+  backdrop-filter: blur(20px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-panel-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(20, 20, 30, 0.6);
+  border-color: rgba(168, 85, 247, 0.25);
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.6),
+    0 0 40px 0 rgba(168, 85, 247, 0.05);
+  transform: translateY(-2px);
+}
+
+/* Premium Navigation Links (tawmae.xyz style) */
+.nav-link-premium {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-transform: uppercase;
+}
+
+.nav-link-premium:hover {
+  color: #ffffff;
+}
+
+.nav-link-premium::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #a855f7 0%, #06b6d4 50%, #3b82f6 100%);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-link-premium:hover::after,
+.nav-link-premium.active::after {
+  transform: scaleX(1);
+}
