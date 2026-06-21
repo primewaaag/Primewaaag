@@ -17,6 +17,15 @@ export default function Home() {
   const { videos, isLoading: videosLoading } = useVideos();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('openExtensions') === 'true') {
+      setIsModalOpen(true);
+      // Clean up URL parameter so it doesn't reopen on reload
+      window.history.replaceState(null, '', '/');
+    }
+  }, []);
+
+  useEffect(() => {
     async function checkLiveStatus() {
       try {
         const res = await fetch('/.netlify/functions/get-twitch-status');

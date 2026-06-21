@@ -20,10 +20,10 @@ export default function ExtensionsModal({ isOpen, onClose }: ExtensionsModalProp
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md p-4 sm:p-6 md:p-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-4 sm:p-6 md:p-10 animate-modal-backdrop">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-7xl h-full max-h-[85vh] bg-zinc-900/40 border border-white/5 rounded-2xl flex flex-col p-6 overflow-hidden shadow-2xl backdrop-blur-xl">
+      <div className="relative w-full max-w-7xl h-full max-h-[85vh] bg-zinc-900/40 border border-white/5 rounded-2xl flex flex-col p-6 overflow-hidden shadow-2xl backdrop-blur-xl animate-modal-card">
         
         {/* SEARCH BAR HEADER */}
         <div className="flex items-center gap-3 w-full mb-6">
