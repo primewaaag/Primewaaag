@@ -6,13 +6,13 @@
 }
 
 html {
-  background: linear-gradient(135deg, #020813 0%, #051a36 45%, #0d3561 80%, #17508a 100%) !important;
-  background-attachment: fixed !important;
+  background: url('/background.webp') no-repeat center center fixed !important;
+  background-size: cover !important;
 }
 
 body {
-  background: linear-gradient(135deg, #020813 0%, #051a36 45%, #0d3561 80%, #17508a 100%) !important;
-  background-attachment: fixed !important;
+  background: url('/background.webp') no-repeat center center fixed !important;
+  background-size: cover !important;
   color: #f4f4f5;
   font-family: var(--font-sans);
   position: relative;

@@ -33,12 +33,12 @@ export default function AccountsPage() {
     }
   }, [user]);
 
-  // Redirect to home if unauthenticated after loading finishes
+  // Redirect to login if unauthenticated after loading finishes
   useEffect(() => {
     if (!isLoading && !user) {
-      setAuthModalOpen(true);
+      router.push('/auth/login?next=/accounts');
     }
-  }, [user, isLoading, setAuthModalOpen]);
+  }, [user, isLoading, router]);
 
   const handleSaveName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +70,7 @@ export default function AccountsPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen text-white flex flex-col items-center justify-center bg-[#020813] relative overflow-hidden">
+      <main className="min-h-screen text-white flex flex-col items-center justify-center relative overflow-hidden">
         <div className="glow-blob-1 z-0" />
         <Loader2 className="h-10 w-10 text-purple-500 animate-spin relative z-10" />
         <p className="text-zinc-400 text-sm mt-3 relative z-10">Loading account credentials...</p>
@@ -80,7 +80,7 @@ export default function AccountsPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen text-white flex flex-col items-center justify-center bg-[#020813] relative overflow-hidden px-4">
+      <main className="min-h-screen text-white flex flex-col items-center justify-center relative overflow-hidden px-4">
         <div className="glow-blob-1 z-0" />
         <Navbar />
         <div className="max-w-md w-full glass-panel border border-white/5 p-8 rounded-3xl text-center space-y-6 relative z-10 mt-20">
@@ -93,12 +93,12 @@ export default function AccountsPage() {
               Please sign in to view your profile and manage account settings.
             </p>
           </div>
-          <button
-            onClick={() => setAuthModalOpen(true)}
-            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all transform hover:scale-[1.02] cursor-pointer"
+          <Link
+            href="/auth/login?next=/accounts"
+            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all transform hover:scale-[1.02] cursor-pointer flex justify-center items-center"
           >
             Sign In
-          </button>
+          </Link>
         </div>
       </main>
     );
@@ -120,7 +120,7 @@ export default function AccountsPage() {
   const platforms = user.platforms || [user.createdVia || user.platform || 'email'];
 
   return (
-    <main className="min-h-screen text-white bg-[#020813] relative overflow-hidden">
+    <main className="min-h-screen text-white relative overflow-hidden">
       {/* Glow blobs */}
       <div className="glow-blob-1 z-0" />
       <div className="glow-blob-2 z-0" />

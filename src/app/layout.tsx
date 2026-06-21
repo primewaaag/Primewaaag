@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import AuthModal from "@/components/AuthModal";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -25,7 +24,6 @@ export default function RootLayout({
       <body className={`${plusJakarta.className} antialiased`}>
         <AuthProvider>
           {children}
-          <AuthModal />
         </AuthProvider>
       </body>
     </html>

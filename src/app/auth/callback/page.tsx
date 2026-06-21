@@ -101,7 +101,7 @@ function CallbackContent() {
         <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
         <div>
           <h2 className="text-xl font-bold text-white">Completing Sign-In</h2>
-          <p className="text-zinc-400 text-sm mt-1">Connecting your profile to Firebase Security...</p>
+          <p className="text-zinc-400 text-sm mt-1">Syncing your profile credentials...</p>
         </div>
       </div>
     );
