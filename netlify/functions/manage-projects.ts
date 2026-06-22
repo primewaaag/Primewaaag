@@ -77,6 +77,7 @@ export const handler: Handler = async (event) => {
         versions: Array.isArray(versions) ? versions : [],
         featured: featured === true,
         createdAt: new Date().toISOString(),
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return { statusCode: 201, headers, body: JSON.stringify({ message: 'Project added.', id }) };
@@ -106,6 +107,7 @@ export const handler: Handler = async (event) => {
         redirectLink: redirectLink || null,
         versions: Array.isArray(versions) ? versions : [],
         featured: featured === true,
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return { statusCode: 200, headers, body: JSON.stringify({ message: 'Project updated.', id }) };

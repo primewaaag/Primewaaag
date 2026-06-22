@@ -72,7 +72,8 @@ export const handler: Handler = async (event) => {
         type,
         date,
         mediaUrl: mediaUrl || null,
-        readMoreUrl: readMoreUrl || null
+        readMoreUrl: readMoreUrl || null,
+        adminSecret: firebaseConfig.apiKey || null
       });
 
       return {
@@ -100,7 +101,8 @@ export const handler: Handler = async (event) => {
         type,
         date,
         mediaUrl: mediaUrl || null,
-        readMoreUrl: readMoreUrl || null
+        readMoreUrl: readMoreUrl || null,
+        adminSecret: firebaseConfig.apiKey || null
       });
 
       return {

@@ -102,6 +102,7 @@ export const handler: Handler = async (event) => {
         copyText: copyText || '',
         copyBtnText: copyBtnText || '',
         actions: actions || [],
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return {
@@ -159,6 +160,7 @@ export const handler: Handler = async (event) => {
         copyText: copyText || '',
         copyBtnText: copyBtnText || '',
         actions: actions || [],
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return {

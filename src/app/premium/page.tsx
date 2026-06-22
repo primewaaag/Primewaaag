@@ -1,33 +1,70 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { db } from '@/utils/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function PremiumPage() {
   const { user } = useAuth();
+  const [activeTier, setActiveTier] = useState<number>(0);
+  const [loadingTier, setLoadingTier] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchActiveTier = async () => {
+      if (!user || !user.userId) {
+        setLoadingTier(false);
+        return;
+      }
+      try {
+        const q = query(
+          collection(db, 'premium'),
+          where('userId', '==', user.userId),
+          where('status', '==', 'active')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const subData = snap.docs[0].data();
+          setActiveTier(subData.tier || 0);
+        } else {
+          setActiveTier(0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch active tier:', err);
+      } finally {
+        setLoadingTier(false);
+      }
+    };
+    fetchActiveTier();
+  }, [user]);
 
   const isTwitchSubscriber = !!(
-    user && 
+    user &&
     (
       ((user.twitchId || user.twitchUsername) && (user.role === 'Twitch Subscriber' || (user as any).isSubscriber === true)) ||
       user.role === 'Admin'
     )
   );
 
-  const getTierLevel = (role?: string) => {
-    if (role === 'Tier 1') return 1;
-    if (role === 'Tier 2') return 2;
-    if (role === 'Tier 3') return 3;
-    return 0;
-  };
-
-  const currentTierLevel = getTierLevel(user?.role);
+  const currentTierLevel = activeTier;
   const inPlan = currentTierLevel > 0;
 
   const renderCardButton = (cardTier: 1 | 2 | 3) => {
+    if (user && loadingTier) {
+      return (
+        <button
+          disabled
+          className="w-full py-3 px-4 rounded-full bg-zinc-800/40 text-zinc-500 font-bold text-xs uppercase tracking-wider cursor-wait text-center border border-zinc-800/40 block flex items-center justify-center gap-2"
+        >
+          <Loader2 size={12} className="animate-spin text-purple-500" />
+          <span>Checking plan...</span>
+        </button>
+      );
+    }
+
     if (currentTierLevel === cardTier) {
       return (
         <button
@@ -49,7 +86,7 @@ export default function PremiumPage() {
         </button>
       );
     }
-    
+
     let btnText = 'Join now';
     if (inPlan) {
       btnText = 'Upgrade tier';
@@ -106,7 +143,7 @@ export default function PremiumPage() {
                 <div className="text-center h-4" />
 
                 <p className="text-xs text-zinc-300 font-medium pt-2">
-                  Get a glimpse of nutty in a nutshell!
+                  Get a glimpse of waaag in a nutshell!
                 </p>
 
                 <ul className="space-y-3 pt-2">

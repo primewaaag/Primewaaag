@@ -28,20 +28,17 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const usersCol = collection(db, 'users');
-    const snapshot = await getDocs(query(usersCol));
+    const supportersCol = collection(db, 'supporters');
+    const snapshot = await getDocs(query(supportersCol));
     
     const supporters: any[] = [];
     snapshot.forEach(doc => {
       const data = doc.data();
-      const isSupporter = data.role === 'Premium' || data.role === 'Twitch Subscriber' || data.isSubscriber === true || data.role === 'Admin';
-      if (isSupporter) {
-        supporters.push({
-          username: data.username,
-          avatar: data.avatar,
-          role: data.role
-        });
-      }
+      supporters.push({
+        username: data.username,
+        avatar: data.avatar,
+        role: data.role || 'Supporter'
+      });
     });
 
     return {

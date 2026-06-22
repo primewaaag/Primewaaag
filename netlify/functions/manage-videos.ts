@@ -82,6 +82,7 @@ export const handler: Handler = async (event) => {
         thumbnail,
         url,
         order: typeof order === 'number' ? order : 0,
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return {
@@ -108,6 +109,7 @@ export const handler: Handler = async (event) => {
         thumbnail,
         url,
         order: typeof order === 'number' ? order : 0,
+        adminSecret: firebaseConfig.apiKey || null,
       });
 
       return {

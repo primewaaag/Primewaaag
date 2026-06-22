@@ -27,12 +27,12 @@ export default function AdminPage() {
   const { user, isAdmin, isLoading: authLoading, token } = useAuth();
   const { downloads, isLoading: downloadsLoading, refresh: refreshDownloads } = useDownloads();
   const { news, isLoading: newsLoading, refresh: refreshNews } = useNews();
-  
+
   const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'projects' | 'users'>('downloads');
   const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  
+
   // Form States
   const [formId, setFormId] = useState('');
   const [formTitle, setFormTitle] = useState('');
@@ -409,7 +409,7 @@ export default function AdminPage() {
 
   // 3-dots Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  
+
   const [apiError, setApiError] = useState('');
   const [apiSuccess, setApiSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -710,7 +710,7 @@ export default function AdminPage() {
           </div>
           <h2 className="text-xl font-bold text-white">Access Denied</h2>
           <p className="text-zinc-400 text-sm">
-            Only authorized administrator accounts can access the panel. Please sign in as <code className="text-purple-400">marc.aeschbach@icloud.com</code>.
+            Only authorized administrator accounts can access the panel.
           </p>
           <div className="pt-2">
             <Link href="/" className="inline-block px-5 py-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 text-sm font-semibold transition-colors">
@@ -727,7 +727,7 @@ export default function AdminPage() {
       <Navbar />
 
       <div className="pt-28 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
-        
+
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -739,7 +739,7 @@ export default function AdminPage() {
               <p className="text-xs text-purple-400">System settings and collections database panel.</p>
             </div>
           </div>
-          
+
           <div className="flex flex-wrap gap-2 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
             <button
               onClick={() => setActiveTab('downloads')}
@@ -783,7 +783,7 @@ export default function AdminPage() {
         {/* TAB CONTENT: DOWNLOADS MANAGER */}
         {activeTab === 'downloads' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
+
             {/* 1. MANAGE / ADD FORM */}
             <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-6 h-fit backdrop-blur-md space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-white/5">
@@ -791,7 +791,7 @@ export default function AdminPage() {
                   {editingDl ? 'Edit Download' : 'Add New Download'}
                 </h2>
                 {editingDl && (
-                  <button 
+                  <button
                     onClick={clearForm}
                     className="text-[10px] text-zinc-500 hover:text-white bg-zinc-950/50 px-2.5 py-1 rounded-md"
                   >
@@ -917,7 +917,7 @@ export default function AdminPage() {
                       ))}
                     </div>
                   )}
-                  
+
                   {/* Add/Edit Action Box */}
                   <div className="p-3 rounded-xl bg-zinc-950/45 border border-white/5 space-y-3">
                     <p className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest">
@@ -1090,7 +1090,7 @@ export default function AdminPage() {
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                   {downloads.map((dl) => {
                     return (
-                      <div 
+                      <div
                         key={dl.id}
                         className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:border-white/10 transition-all"
                       >
@@ -1168,7 +1168,7 @@ export default function AdminPage() {
         {/* TAB CONTENT: NEWS MANAGER */}
         {activeTab === 'news' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
+
             {/* 1. MANAGE / ADD FORM */}
             <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-6 h-fit backdrop-blur-md space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-white/5">
@@ -1176,7 +1176,7 @@ export default function AdminPage() {
                   {editingNews ? 'Edit News Article' : 'Add News Article'}
                 </h2>
                 {editingNews && (
-                  <button 
+                  <button
                     onClick={clearNewsForm}
                     className="text-[10px] text-zinc-500 hover:text-white bg-zinc-950/50 px-2.5 py-1 rounded-md"
                   >
@@ -1312,7 +1312,7 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2 max-h-[550px] overflow-y-auto pr-1">
                   {news.map((item) => (
-                    <div 
+                    <div
                       key={item.id}
                       className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:border-white/10 transition-all"
                     >
@@ -1321,11 +1321,10 @@ export default function AdminPage() {
                         <div className="truncate">
                           <div className="flex items-center gap-2">
                             <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded ${
-                              item.type === 'RELEASE' ? 'bg-amber-500/10 text-amber-500' :
-                              item.type === 'NEW VIDEO' ? 'bg-rose-500/10 text-rose-500' :
-                              'bg-purple-500/10 text-purple-500'
-                            }`}>
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded ${item.type === 'RELEASE' ? 'bg-amber-500/10 text-amber-500' :
+                                item.type === 'NEW VIDEO' ? 'bg-rose-500/10 text-rose-500' :
+                                  'bg-purple-500/10 text-purple-500'
+                              }`}>
                               {item.type}
                             </span>
                             <span className="text-[10px] text-zinc-500 ml-1">{item.date}</span>
@@ -1482,11 +1481,10 @@ export default function AdminPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {STATUS_COLORS.map(c => (
                       <button key={c} type="button" onClick={() => setProjFormStatusColor(c)}
-                        className={`text-[9px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer capitalize ${
-                          projFormStatusColor === c
+                        className={`text-[9px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer capitalize ${projFormStatusColor === c
                             ? 'border-white/30 bg-white/15 text-white'
                             : 'border-white/8 bg-white/3 text-zinc-500 hover:text-zinc-300'
-                        }`}>
+                          }`}>
                         {c}
                       </button>
                     ))}

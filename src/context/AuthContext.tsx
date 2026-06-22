@@ -27,15 +27,6 @@ export interface User {
   twitchId?: string | null;
   discordId?: string | null;
   isSubscriber?: boolean;
-  billingEmail?: string | null;
-  billingAddress?: {
-    fullName: string;
-    street: string;
-    city: string;
-    zip: string;
-    country: string;
-  } | null;
-  paypalOrder?: any;
   infoSource?: 'google' | 'twitch' | 'discord';
   googleUsername?: string | null;
   googleAvatar?: string | null;
@@ -99,6 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = user?.email?.toLowerCase() === 'marc.aeschbach@icloud.com';
 
+  const proxyAvatar = (url: string) => {
+    if (url && url.startsWith('https://lh3.googleusercontent.com/')) {
+      return `/.netlify/functions/avatar-proxy?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  };
+
   // Helper to sync/create user document in Firestore
   const syncUserToFirestore = async (
     fbUser: FirebaseUser,
@@ -117,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Determine platform-specific username & avatar
     const currentUsername = oauthUsername || fbUser.displayName || email.split('@')[0] || 'User';
-    let currentAvatar = oauthAvatar || fbUser.photoURL || '';
+    let currentAvatar = proxyAvatar(oauthAvatar || fbUser.photoURL || '');
     if (!currentAvatar) {
       const color = platform === 'twitch' ? 'a970ff' : platform === 'discord' ? '5865f2' : '4f46e5';
       const firstLetter = currentUsername.charAt(0).toUpperCase();
@@ -171,9 +169,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       twitchAvatar,
       discordUsername,
       discordAvatar,
-      billingEmail: existingData?.billingEmail || null,
-      billingAddress: existingData?.billingAddress || null,
-      paypalOrder: existingData?.paypalOrder || null,
     };
 
     // Save to firestore
@@ -181,6 +176,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...userData,
       lastLogin: new Date().toISOString(),
     }, { merge: true });
+
+    // Sync admin to public supporters collection
+    const resolvedRole = userData.role;
+    if (resolvedRole === 'Admin') {
+      await setDoc(doc(db, 'supporters', fbUser.uid), {
+        username: userData.username,
+        avatar: userData.avatar,
+        role: resolvedRole,
+      }, { merge: true });
+    }
 
     setUser(userData);
   };
@@ -225,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = userDoc.data();
           setUser({
             username: data.username,
-            avatar: data.avatar,
+            avatar: proxyAvatar(data.avatar),
             email: data.email,
             role: data.role,
             userId: data.userId,
@@ -236,14 +241,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             discordId: data.discordId || null,
             infoSource: data.infoSource || null,
             googleUsername: data.googleUsername || null,
-            googleAvatar: data.googleAvatar || null,
+            googleAvatar: proxyAvatar(data.googleAvatar) || null,
             twitchUsername: data.twitchUsername || null,
             twitchAvatar: data.twitchAvatar || null,
             discordUsername: data.discordUsername || null,
             discordAvatar: data.discordAvatar || null,
-            billingEmail: data.billingEmail || null,
-            billingAddress: data.billingAddress || null,
-            paypalOrder: data.paypalOrder || null,
           });
         } else {
           // Do NOT sync to Firestore to avoid race condition with callback pages.
@@ -251,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const platform = (fbUser.providerData[0]?.providerId === 'google.com' ? 'google' : 'email') as 'google' | 'twitch' | 'discord' | 'email';
           const currentUsername = fbUser.displayName || fbUser.email?.split('@')[0] || 'User';
           const firstLetter = currentUsername.charAt(0).toUpperCase();
-          const currentAvatar = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=4f46e5&color=fff&size=128&bold=true`;
+          const currentAvatar = proxyAvatar(fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=4f46e5&color=fff&size=128&bold=true`);
           setUser({
             username: currentUsername,
             avatar: currentAvatar,
@@ -505,7 +507,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = userDoc.data();
         const updatedUser: User = {
           username: data.username,
-          avatar: data.avatar,
+          avatar: proxyAvatar(data.avatar),
           email: data.email,
           role: data.role,
           userId: data.userId,
@@ -516,14 +518,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           discordId: data.discordId || null,
           infoSource: data.infoSource || null,
           googleUsername: data.googleUsername || null,
-          googleAvatar: data.googleAvatar || null,
+          googleAvatar: proxyAvatar(data.googleAvatar) || null,
           twitchUsername: data.twitchUsername || null,
           twitchAvatar: data.twitchAvatar || null,
           discordUsername: data.discordUsername || null,
           discordAvatar: data.discordAvatar || null,
-          billingEmail: data.billingEmail || null,
-          billingAddress: data.billingAddress || null,
-          paypalOrder: data.paypalOrder || null,
         };
         setUser(updatedUser);
         

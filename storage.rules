@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             request.auth.token.email.lower() == 'marc.aeschbach@icloud.com';
+    }
+
+    // Projects and downloads assets: readable by anyone, only writable by admin
+    match /projects/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /downloads/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User-specific uploads (avatars, attachments, etc.)
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true; // Publicly viewable avatars
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Fallback: Default deny all other paths unless admin
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

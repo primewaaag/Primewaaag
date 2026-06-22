@@ -30,10 +30,12 @@ export default function AccountsPage() {
 
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loadingPurchases, setLoadingPurchases] = useState(true);
+  const [activeTier, setActiveTier] = useState<number>(0);
+  const [loadingTier, setLoadingTier] = useState(true);
 
-  // Fetch user's orders from the database
+  // Fetch user's orders and active subscription from the database
   useEffect(() => {
-    const fetchPurchases = async () => {
+    const fetchData = async () => {
       if (!user || !user.userId) return;
       try {
         const q = query(collection(db, 'orders'), where('userId', '==', user.userId));
@@ -47,8 +49,27 @@ export default function AccountsPage() {
       } finally {
         setLoadingPurchases(false);
       }
+
+      try {
+        const subQ = query(
+          collection(db, 'premium'),
+          where('userId', '==', user.userId),
+          where('status', '==', 'active')
+        );
+        const subSnap = await getDocs(subQ);
+        if (!subSnap.empty) {
+          const subData = subSnap.docs[0].data();
+          setActiveTier(subData.tier || 0);
+        } else {
+          setActiveTier(0);
+        }
+      } catch (err) {
+        console.error('Error fetching active sub:', err);
+      } finally {
+        setLoadingTier(false);
+      }
     };
-    fetchPurchases();
+    fetchData();
   }, [user]);
 
   // Sync chosen info source state on load
@@ -107,7 +128,7 @@ export default function AccountsPage() {
       <main className="min-h-screen text-white flex flex-col items-center justify-center relative overflow-hidden">
         <div className="glow-blob-1 z-0" />
         <Loader2 className="h-10 w-10 text-purple-500 animate-spin relative z-10" />
-        <p className="text-zinc-400 text-sm mt-3 relative z-10">Loading account credentials...</p>
+        <p className="text-zinc-400 text-sm mt-3 relative z-10">Loading...</p>
       </main>
     );
   }
@@ -177,7 +198,7 @@ export default function AccountsPage() {
         <div className="glass-panel border border-white/5 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden space-y-8">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-linear-to-r from-transparent via-purple-500/20 to-transparent" />
 
-          {/* Profile Header */}
+           {/* Profile Header */}
           <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-white/5">
             <div className="relative">
               <img
@@ -185,19 +206,33 @@ export default function AccountsPage() {
                 alt={user.username}
                 className="h-24 w-24 rounded-full border-2 border-purple-500/30 object-cover shadow-[0_0_30px_rgba(168,85,247,0.2)]"
               />
-              <span className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-emerald-500 border-2 border-zinc-950 flex items-center justify-center text-[10px] font-bold text-white shadow-md">
-                ✓
-              </span>
             </div>
 
             <div className="text-center sm:text-left space-y-2">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                 <h1 className="text-2xl font-black tracking-tight uppercase">{user.username}</h1>
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
-              <p className="text-[10px] text-purple-400 uppercase font-bold tracking-widest bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20 inline-block">
-                {user.role}
-              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {/* Base Role Badge */}
+                <p className="text-[10px] text-purple-400 uppercase font-bold tracking-widest bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20 inline-block">
+                  {user.email.toLowerCase() === 'marc.aeschbach@icloud.com' ? 'Admin' : 'User'}
+                </p>
+
+                {/* Subscription Tier Badge */}
+                {loadingTier ? (
+                  <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/40 inline-flex items-center gap-1.5">
+                    <Loader2 size={10} className="animate-spin text-purple-500" />
+                    <span>Loading Plan...</span>
+                  </p>
+                ) : activeTier > 0 ? (
+                  <Link
+                    href="/premium"
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 uppercase font-bold tracking-widest bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1 transition-all"
+                  >
+                    Tier {activeTier} Subscriber <span className="text-[8px]">➜</span>
+                  </Link>
+                ) : null}
+              </div>
             </div>
           </div>
 

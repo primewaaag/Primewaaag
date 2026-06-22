@@ -57,7 +57,7 @@ function CheckoutContent() {
       }
       try {
         const q = query(
-          collection(db, 'subscriptions'),
+          collection(db, 'premium'),
           where('userId', '==', user.userId),
           where('status', '==', 'active')
         );
@@ -191,17 +191,17 @@ function CheckoutContent() {
   const handleCheckoutSuccess = async (paypalOrderDetails: any) => {
     if (!user) return;
     try {
-      // 1. Deactivate old active subscriptions by updating status
+      // 1. Deactivate old active premium memberships by updating status
       if (activeSubId) {
-        await setDoc(doc(db, 'subscriptions', activeSubId), {
+        await setDoc(doc(db, 'premium', activeSubId), {
           status: 'upgraded',
           updatedAt: new Date().toISOString()
         }, { merge: true });
       }
 
-      // 2. Create new active subscription document
-      const subId = doc(collection(db, 'subscriptions')).id;
-      await setDoc(doc(db, 'subscriptions', subId), {
+      // 2. Create new active premium document
+      const subId = doc(collection(db, 'premium')).id;
+      await setDoc(doc(db, 'premium', subId), {
         id: subId,
         userId: user.userId,
         tier: tier,
@@ -230,10 +230,16 @@ function CheckoutContent() {
         paypalOrder: paypalOrderDetails || null
       });
 
-      // 4. Update the user's role on the user document (no billing details saved here!)
-      await updateUserFields({
-        role: `Tier ${tier}`
-      });
+      // 4. We no longer write the subscription role to the user document directly, as we link via the subscriptions collection instead.
+
+      // 5. Add user to public supporters collection only if they are Tier 3
+      if (tier === 3) {
+        await setDoc(doc(db, 'supporters', user.userId), {
+          username: user.username,
+          avatar: user.avatar,
+          role: `Tier ${tier} Member`,
+        });
+      }
 
       alert(`Checkout completed successfully! Welcome to Tier ${tier} Membership.`);
       router.push('/premium');
