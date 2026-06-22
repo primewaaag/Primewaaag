@@ -26,6 +26,13 @@ function LoginContent() {
     }
   }, [user, isLoading, router, next]);
 
+  // Persist 'next' target for OAuth callback redirection
+  useEffect(() => {
+    if (typeof window !== 'undefined' && next) {
+      localStorage.setItem('auth_next', next);
+    }
+  }, [next]);
+
   return (
     <div className="w-full max-w-md bg-zinc-900/80 border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-xl overflow-hidden relative">
       {/* Glow highlight top line */}
@@ -103,7 +110,7 @@ function LoginContent() {
       {isLoading && (
         <div className="absolute inset-0 bg-zinc-950/90 flex flex-col items-center justify-center space-y-4 z-50">
           <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
-          <p className="text-sm font-semibold text-zinc-300">Connecting account...</p>
+          <p className="text-sm font-semibold text-zinc-300">Loading...</p>
         </div>
       )}
     </div>

@@ -17,12 +17,43 @@ function CallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
-  const { syncUserToFirestore } = useAuth();
+  const { syncUserToFirestore, refreshUser } = useAuth();
   const calledRef = useRef(false);
+
+  // Redirect back to accounts after 3 seconds on same email linking error
+  useEffect(() => {
+    if (status === 'error' && errorMessage === 'Could not be linked because not same email.') {
+      const timer = setTimeout(() => {
+        router.replace('/accounts');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, errorMessage, router]);
 
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state'); // twitch or discord
+    const error = searchParams.get('error');
+
+    if (error || searchParams.has('error')) {
+      if (error === 'email_mismatch') {
+        setStatus('error');
+        setErrorMessage('Could not be linked because not same email.');
+        return;
+      }
+
+      const isLinking = !!localStorage.getItem('connect_platform_uid');
+      
+      localStorage.removeItem('connect_platform_uid');
+      localStorage.removeItem('connect_platform_type');
+      localStorage.removeItem('connect_platform_email');
+      
+      const nextUrl = isLinking ? '/accounts' : (localStorage.getItem('auth_next') || '/');
+      localStorage.removeItem('auth_next');
+      
+      router.replace(nextUrl);
+      return;
+    }
 
     if (!code || !state) {
       setStatus('error');
@@ -52,32 +83,53 @@ function CallbackContent() {
 
         const { email, password, username, avatar, id } = data;
 
-        // Check if we are linking Twitch to an existing user!
-        const connectTwitchUid = localStorage.getItem('connect_twitch_uid');
-        if (connectTwitchUid) {
-          const userRef = doc(db, 'users', connectTwitchUid);
+        // Check if we are linking an OAuth platform to an existing user!
+        const connectPlatformUid = localStorage.getItem('connect_platform_uid');
+        const connectPlatformType = localStorage.getItem('connect_platform_type');
+        const connectPlatformEmail = localStorage.getItem('connect_platform_email');
+
+        if (connectPlatformUid && connectPlatformType) {
+          // Verify if the OAuth email matches the registered account email
+          if (connectPlatformEmail && email.toLowerCase() !== connectPlatformEmail.toLowerCase()) {
+            localStorage.removeItem('connect_platform_uid');
+            localStorage.removeItem('connect_platform_type');
+            localStorage.removeItem('connect_platform_email');
+            setStatus('error');
+            setErrorMessage('Could not be linked because not same email.');
+            return;
+          }
+
+          const userRef = doc(db, 'users', connectPlatformUid);
           const userDoc = await getDoc(userRef);
           if (userDoc.exists()) {
-            const existingData = userDoc.data();
-            let platforms = existingData.platforms || [];
-            if (!platforms.includes('twitch')) {
-              platforms.push('twitch');
+            const firstLetter = username ? username.charAt(0).toUpperCase() : 'U';
+            const resolvedAvatar = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=${connectPlatformType === 'twitch' ? 'a970ff' : '5865f2'}&color=fff&size=128&bold=true`;
+            const updateFields: any = {};
+            if (connectPlatformType === 'twitch') {
+              updateFields.twitchId = id;
+              updateFields.twitchUsername = username;
+              updateFields.twitchAvatar = resolvedAvatar;
+            } else if (connectPlatformType === 'discord') {
+              updateFields.discordId = id;
+              updateFields.discordUsername = username;
+              updateFields.discordAvatar = resolvedAvatar;
             }
-            await setDoc(userRef, {
-              twitchId: id,
-              platforms: platforms
-            }, { merge: true });
+            await setDoc(userRef, updateFields, { merge: true });
           }
           
-          localStorage.removeItem('connect_twitch_uid');
+          localStorage.removeItem('connect_platform_uid');
+          localStorage.removeItem('connect_platform_type');
+          localStorage.removeItem('connect_platform_email');
           setStatus('success');
           
           // Clear current session in localStorage so it reloads latest profile
           localStorage.removeItem('primewaaag_session');
           
-          // Redirect to premium page
+          await refreshUser();
+          
+          // Redirect to accounts page
           setTimeout(() => {
-            router.replace('/premium');
+            router.replace('/accounts');
           }, 1500);
           return;
         }
@@ -111,9 +163,11 @@ function CallbackContent() {
 
         setStatus('success');
         
-        // Redirect to homepage after a brief delay
+        // Redirect to target nextUrl or homepage after a brief delay
+        const nextUrl = localStorage.getItem('auth_next') || '/';
+        localStorage.removeItem('auth_next');
         setTimeout(() => {
-          router.replace('/');
+          router.replace(nextUrl);
         }, 1500);
 
       } catch (err: any) {
@@ -131,8 +185,8 @@ function CallbackContent() {
       <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
         <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
         <div>
-          <h2 className="text-xl font-bold text-white">Completing Sign-In</h2>
-          <p className="text-zinc-400 text-sm mt-1">Syncing your profile credentials...</p>
+          <h2 className="text-xl font-bold text-white">Loading...</h2>
+          <p className="text-zinc-400 text-sm mt-1">Please wait...</p>
         </div>
       </div>
     );
@@ -145,14 +199,16 @@ function CallbackContent() {
           <AlertCircle size={24} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white">Sign-In Failed</h2>
+          <h2 className="text-xl font-bold text-white">
+            {errorMessage === 'Could not be linked because not same email.' ? 'Linking Failed' : 'Sign-In Failed'}
+          </h2>
           <p className="text-red-400 text-sm mt-1 max-w-md">{errorMessage}</p>
         </div>
         <button 
-          onClick={() => router.replace('/')}
+          onClick={() => router.replace(errorMessage === 'Could not be linked because not same email.' ? '/accounts' : '/')}
           className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-bold transition-all cursor-pointer"
         >
-          Return to Homepage
+          {errorMessage === 'Could not be linked because not same email.' ? 'Return to Accounts' : 'Return to Homepage'}
         </button>
       </div>
     );
@@ -181,8 +237,8 @@ export default function AuthCallbackPage() {
           <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
             <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
             <div>
-              <h2 className="text-xl font-bold text-white">Completing Sign-In</h2>
-              <p className="text-zinc-400 text-sm mt-1">Loading authorization state...</p>
+              <h2 className="text-xl font-bold text-white">Loading...</h2>
+              <p className="text-zinc-400 text-sm mt-1">Please wait...</p>
             </div>
           </div>
         }>

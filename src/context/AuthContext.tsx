@@ -8,7 +8,9 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  User as FirebaseUser 
+  User as FirebaseUser,
+  linkWithPopup,
+  unlink
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/utils/firebase';
@@ -17,16 +19,30 @@ export interface User {
   username: string;
   avatar: string;
   email: string;
-  platform: 'twitch' | 'google' | 'discord' | 'email';
   role: string;
   userId: string;
   createdVia?: string;
   signUpMethod?: string;
   createdAt?: string;
-  platforms?: string[];
   twitchId?: string | null;
   discordId?: string | null;
   isSubscriber?: boolean;
+  billingEmail?: string | null;
+  billingAddress?: {
+    fullName: string;
+    street: string;
+    city: string;
+    zip: string;
+    country: string;
+  } | null;
+  paypalOrder?: any;
+  infoSource?: 'google' | 'twitch' | 'discord';
+  googleUsername?: string | null;
+  googleAvatar?: string | null;
+  twitchUsername?: string | null;
+  twitchAvatar?: string | null;
+  discordUsername?: string | null;
+  discordAvatar?: string | null;
 }
 
 interface AuthContextType {
@@ -38,10 +54,12 @@ interface AuthContextType {
   isAdmin: boolean;
   setAuthModalOpen: (open: boolean) => void;
   loginWithGoogle: () => Promise<void>;
+  linkGoogleAccount: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
   loginOAuthPlatform: (platform: 'twitch' | 'discord') => Promise<void>;
   updateUserFields: (fields: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
   syncUserToFirestore: (
     fbUser: FirebaseUser,
     platform: 'google' | 'twitch' | 'discord' | 'email',
@@ -97,45 +115,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isOwner = email.toLowerCase() === 'marc.aeschbach@icloud.com';
     const role = isOwner ? 'Admin' : (platform === 'twitch' ? 'Twitch Creator' : platform === 'discord' ? 'Discord Moderator' : 'User');
     
-    // Choose avatar
-    let avatar = existingData?.avatar || oauthAvatar || fbUser.photoURL || '';
-    if (!avatar) {
+    // Determine platform-specific username & avatar
+    const currentUsername = oauthUsername || fbUser.displayName || email.split('@')[0] || 'User';
+    let currentAvatar = oauthAvatar || fbUser.photoURL || '';
+    if (!currentAvatar) {
       const color = platform === 'twitch' ? 'a970ff' : platform === 'discord' ? '5865f2' : '4f46e5';
-      avatar = `https://api.dicebear.com/7.x/identicon/svg?seed=${fbUser.uid}&backgroundColor=${color}`;
+      const firstLetter = currentUsername.charAt(0).toUpperCase();
+      currentAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=${color}&color=fff&size=128&bold=true`;
     }
 
-    const username = existingData?.username || oauthUsername || fbUser.displayName || email.split('@')[0] || 'User';
+    const googleUsername = platform === 'google' ? currentUsername : (existingData?.googleUsername || null);
+    const googleAvatar = platform === 'google' ? currentAvatar : (existingData?.googleAvatar || null);
 
-    let platforms = existingData?.platforms || [];
-    if (existingData?.createdVia && !platforms.includes(existingData.createdVia)) {
-      platforms.push(existingData.createdVia);
-    }
-    if (existingData?.platform && !platforms.includes(existingData.platform)) {
-      platforms.push(existingData.platform);
-    }
-    if (!platforms.includes(platform)) {
-      platforms.push(platform);
-    }
-    if (platforms.length === 0) {
-      platforms = [platform];
+    const twitchUsername = platform === 'twitch' ? currentUsername : (existingData?.twitchUsername || null);
+    const twitchAvatar = platform === 'twitch' ? currentAvatar : (existingData?.twitchAvatar || null);
+
+    const discordUsername = platform === 'discord' ? currentUsername : (existingData?.discordUsername || null);
+    const discordAvatar = platform === 'discord' ? currentAvatar : (existingData?.discordAvatar || null);
+
+    const infoSource = (existingData?.infoSource || (platform === 'email' ? 'google' : platform)) as 'google' | 'twitch' | 'discord';
+
+    // Resolve primary details
+    let resolvedUsername = currentUsername;
+    let resolvedAvatar = currentAvatar;
+
+    if (infoSource === 'google') {
+      resolvedUsername = googleUsername || resolvedUsername;
+      resolvedAvatar = googleAvatar || resolvedAvatar;
+    } else if (infoSource === 'twitch') {
+      resolvedUsername = twitchUsername || resolvedUsername;
+      resolvedAvatar = twitchAvatar || resolvedAvatar;
+    } else if (infoSource === 'discord') {
+      resolvedUsername = discordUsername || resolvedUsername;
+      resolvedAvatar = discordAvatar || resolvedAvatar;
     }
 
     const twitchId = platform === 'twitch' ? (oauthId || null) : (existingData?.twitchId || null);
     const discordId = platform === 'discord' ? (oauthId || null) : (existingData?.discordId || null);
 
     const userData: User = {
-      username,
-      avatar,
+      username: resolvedUsername,
+      avatar: resolvedAvatar,
       email: existingData?.email || email,
       role: existingData?.role || role,
-      platform: existingData?.platform || platform,
       userId: fbUser.uid,
       createdVia: existingData?.createdVia || platform,
       signUpMethod: existingData?.signUpMethod || platform,
       createdAt: existingData?.createdAt || new Date().toISOString(),
-      platforms,
       twitchId,
       discordId,
+      infoSource,
+      googleUsername,
+      googleAvatar,
+      twitchUsername,
+      twitchAvatar,
+      discordUsername,
+      discordAvatar,
+      billingEmail: existingData?.billingEmail || null,
+      billingAddress: existingData?.billingAddress || null,
+      paypalOrder: existingData?.paypalOrder || null,
     };
 
     // Save to firestore
@@ -189,36 +227,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             username: data.username,
             avatar: data.avatar,
             email: data.email,
-            platform: data.platform,
             role: data.role,
             userId: data.userId,
             createdVia: data.createdVia,
             signUpMethod: data.signUpMethod,
             createdAt: data.createdAt,
-            platforms: data.platforms || [data.createdVia || data.platform || 'email'],
             twitchId: data.twitchId || null,
             discordId: data.discordId || null,
+            infoSource: data.infoSource || null,
+            googleUsername: data.googleUsername || null,
+            googleAvatar: data.googleAvatar || null,
+            twitchUsername: data.twitchUsername || null,
+            twitchAvatar: data.twitchAvatar || null,
+            discordUsername: data.discordUsername || null,
+            discordAvatar: data.discordAvatar || null,
+            billingEmail: data.billingEmail || null,
+            billingAddress: data.billingAddress || null,
+            paypalOrder: data.paypalOrder || null,
           });
         } else {
           // Do NOT sync to Firestore to avoid race condition with callback pages.
           // Simply set local React user state.
-          let platform: 'google' | 'twitch' | 'discord' | 'email' = 'email';
-          if (fbUser.providerData[0]?.providerId === 'google.com') {
-            platform = 'google';
-          }
-          const username = fbUser.displayName || fbUser.email?.split('@')[0] || 'User';
-          const avatar = fbUser.photoURL || `https://api.dicebear.com/7.x/identicon/svg?seed=${fbUser.uid}&backgroundColor=4f46e5`;
+          const platform = (fbUser.providerData[0]?.providerId === 'google.com' ? 'google' : 'email') as 'google' | 'twitch' | 'discord' | 'email';
+          const currentUsername = fbUser.displayName || fbUser.email?.split('@')[0] || 'User';
+          const firstLetter = currentUsername.charAt(0).toUpperCase();
+          const currentAvatar = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=4f46e5&color=fff&size=128&bold=true`;
           setUser({
-            username,
-            avatar,
+            username: currentUsername,
+            avatar: currentAvatar,
             email: fbUser.email || '',
-            platform,
             role: 'User',
             userId: fbUser.uid,
             createdAt: new Date().toISOString(),
-            platforms: [platform],
             twitchId: null,
-            discordId: null
+            discordId: null,
+            infoSource: (platform === 'email' ? 'google' : platform) as 'google' | 'twitch' | 'discord',
+            googleUsername: platform === 'google' ? currentUsername : null,
+            googleAvatar: platform === 'google' ? currentAvatar : null,
+            twitchUsername: platform === 'twitch' ? currentUsername : null,
+            twitchAvatar: platform === 'twitch' ? currentAvatar : null,
+            discordUsername: platform === 'discord' ? currentUsername : null,
+            discordAvatar: platform === 'discord' ? currentAvatar : null,
           });
         }
       } else {
@@ -241,9 +290,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await syncUserToFirestore(credential.user, 'google');
       localStorage.removeItem('primewaaag_session');
       setAuthModalOpen(false);
-    } catch (e) {
-      console.error('Google Sign-In Error:', e);
+    } catch (e: any) {
       setIsLoading(false);
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      console.error('Google Sign-In Error:', e);
+      throw e;
+    }
+  };
+
+  // Link Google Account
+  const linkGoogleAccount = async () => {
+    if (!user) throw new Error('No user is currently logged in.');
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      if (auth.currentUser) {
+        const credential = await linkWithPopup(auth.currentUser, provider);
+        const googleProvider = credential.user.providerData.find(p => p.providerId === 'google.com');
+        if (googleProvider && googleProvider.email && googleProvider.email.toLowerCase() !== user.email.toLowerCase()) {
+          await unlink(auth.currentUser, 'google.com');
+          window.location.href = '/auth/callback?error=email_mismatch';
+          return;
+        }
+        
+        const googleUsername = googleProvider?.displayName || user.username;
+        const googleAvatar = googleProvider?.photoURL || user.avatar;
+        
+        await updateUserFields({
+          googleUsername,
+          googleAvatar
+        });
+      } else {
+        const credential = await signInWithPopup(auth, provider);
+        const googleUser = credential.user;
+        if (googleUser.email && googleUser.email.toLowerCase() !== user.email.toLowerCase()) {
+          await signOut(auth);
+          window.location.href = '/auth/callback?error=email_mismatch';
+          return;
+        }
+        
+        const googleUsername = googleUser.displayName || user.username;
+        const googleAvatar = googleUser.photoURL || user.avatar;
+        
+        await updateUserFields({
+          googleUsername,
+          googleAvatar
+        });
+      }
+      setIsLoading(false);
+    } catch (e: any) {
+      setIsLoading(false);
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      if (e.code === 'auth/email-already-in-use') {
+        window.location.href = '/auth/callback?error=email_mismatch';
+        return;
+      }
+      console.error('Link Google Error:', e);
       throw e;
     }
   };
@@ -260,15 +366,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (e.code === 'auth/configuration-not-found' || e.message?.includes('configuration-not-found')) {
         console.warn('Firebase Email/Password auth not enabled. Falling back to local authentication...');
         const uid = `local_email_${btoa(email).replace(/=/g, '')}`;
+        const firstLetter = email.split('@')[0].charAt(0).toUpperCase();
         const localUser: User = {
           username: email.split('@')[0],
-          avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${uid}&backgroundColor=4f46e5`,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=4f46e5&color=fff&size=128&bold=true`,
           email: email,
-          platform: 'email',
           role: email.toLowerCase() === 'marc.aeschbach@icloud.com' ? 'Admin' : 'User',
           userId: uid,
           createdVia: 'email',
-          signUpMethod: 'email'
+          signUpMethod: 'email',
         };
         const localToken = generateLocalToken(email, uid);
         
@@ -303,15 +409,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (e.code === 'auth/configuration-not-found' || e.message?.includes('configuration-not-found')) {
         console.warn('Firebase Email/Password auth not enabled. Falling back to local sign up...');
         const uid = `local_email_${btoa(email).replace(/=/g, '')}`;
+        const firstLetter = email.split('@')[0].charAt(0).toUpperCase();
         const localUser: User = {
           username: email.split('@')[0],
-          avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${uid}&backgroundColor=4f46e5`,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(firstLetter)}&background=4f46e5&color=fff&size=128&bold=true`,
           email: email,
-          platform: 'email',
           role: email.toLowerCase() === 'marc.aeschbach@icloud.com' ? 'Admin' : 'User',
           userId: uid,
           createdVia: 'email',
-          signUpMethod: 'email'
+          signUpMethod: 'email',
         };
         const localToken = generateLocalToken(email, uid);
         
@@ -377,6 +483,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Refresh user data from Firestore
+  const refreshUser = async () => {
+    const fbUser = auth.currentUser;
+    const sessionStr = localStorage.getItem('primewaaag_session');
+    
+    let targetUid = fbUser?.uid;
+    if (!targetUid && sessionStr) {
+      try {
+        const session = JSON.parse(sessionStr);
+        targetUid = session.user?.userId;
+      } catch (e) {}
+    }
+
+    if (!targetUid) return;
+
+    try {
+      const userRef = doc(db, 'users', targetUid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        const updatedUser: User = {
+          username: data.username,
+          avatar: data.avatar,
+          email: data.email,
+          role: data.role,
+          userId: data.userId,
+          createdVia: data.createdVia,
+          signUpMethod: data.signUpMethod,
+          createdAt: data.createdAt,
+          twitchId: data.twitchId || null,
+          discordId: data.discordId || null,
+          infoSource: data.infoSource || null,
+          googleUsername: data.googleUsername || null,
+          googleAvatar: data.googleAvatar || null,
+          twitchUsername: data.twitchUsername || null,
+          twitchAvatar: data.twitchAvatar || null,
+          discordUsername: data.discordUsername || null,
+          discordAvatar: data.discordAvatar || null,
+          billingEmail: data.billingEmail || null,
+          billingAddress: data.billingAddress || null,
+          paypalOrder: data.paypalOrder || null,
+        };
+        setUser(updatedUser);
+        
+        if (sessionStr) {
+          try {
+            const parsed = JSON.parse(sessionStr);
+            parsed.user = updatedUser;
+            localStorage.setItem('primewaaag_session', JSON.stringify(parsed));
+          } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh user fields from Firestore:', err);
+    }
+  };
+
   // Sign Out
   const logout = async () => {
     setIsLoading(true);
@@ -404,10 +567,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         setAuthModalOpen,
         loginWithGoogle,
+        linkGoogleAccount,
         loginWithEmail,
         signUpWithEmail,
         loginOAuthPlatform,
         updateUserFields,
+        refreshUser,
         syncUserToFirestore,
         logout
       }}

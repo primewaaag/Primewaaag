@@ -16,7 +16,7 @@ interface RegisteredUser {
   id: string;
   email: string;
   username: string;
-  platform: string;
+  infoSource?: string;
   role: string;
   avatar: string;
   lastLogin: string;
@@ -1779,8 +1779,8 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-4 text-zinc-300 font-medium">{u.email || <span className="text-zinc-600 font-italic">N/A</span>}</td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.platform === 'twitch' ? 'bg-[#9146ff]/10 text-[#a970ff]' : u.platform === 'discord' ? 'bg-[#5865f2]/10 text-[#7289da]' : 'bg-purple-500/10 text-purple-400'}`}>
-                            {u.platform}
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.infoSource === 'twitch' ? 'bg-[#9146ff]/10 text-[#a970ff]' : u.infoSource === 'discord' ? 'bg-[#5865f2]/10 text-[#7289da]' : 'bg-purple-500/10 text-purple-400'}`}>
+                            {u.infoSource || 'email'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-zinc-400 font-semibold">{u.role}</td>
