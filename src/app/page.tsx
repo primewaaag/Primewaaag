@@ -224,9 +224,15 @@ export default function Home() {
                     <div className="flex-grow flex flex-col justify-between space-y-3">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-emerald-400 bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                            {item.price === '0' || item.price === '0.00' || item.price.toLowerCase() === 'free' ? 'FREE' : item.price}
-                          </span>
+                          {item.price === 'FREE' ? (
+                            <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-emerald-400 bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                              FREE
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-amber-400 bg-amber-500/5 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                              PREMIUM
+                            </span>
+                          )}
                           <span className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">{item.category}</span>
                         </div>
                         

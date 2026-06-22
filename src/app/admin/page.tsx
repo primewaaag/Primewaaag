@@ -6,11 +6,11 @@ import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import { useDownloads } from '@/hooks/useDownloads';
 import { useNews } from '@/hooks/useNews';
-import { useVideos } from '@/hooks/useVideos';
 import { useProjects } from '@/hooks/useProjects';
+import { storage } from '@/utils/firebase';
+import { Download, DownloadAction } from '@/utils/downloads';
 import { VersionEntry } from '@/hooks/useProjects';
 import { Shield, Users, Puzzle, Plus, Edit2, Trash2, Check, X, Loader2, Sparkles, MoreVertical, Newspaper, Video, FolderCode, Tag, GitBranch, ChevronDown, ChevronUp, Download as DownloadIcon } from 'lucide-react';
-import { Download } from '@/utils/downloads';
 
 interface RegisteredUser {
   id: string;
@@ -25,11 +25,10 @@ interface RegisteredUser {
 
 export default function AdminPage() {
   const { user, isAdmin, isLoading: authLoading, token } = useAuth();
-  const { downloads, featuredDownloads, isLoading: downloadsLoading, refresh: refreshDownloads } = useDownloads();
+  const { downloads, isLoading: downloadsLoading, refresh: refreshDownloads } = useDownloads();
   const { news, isLoading: newsLoading, refresh: refreshNews } = useNews();
-  const { videos, isLoading: videosLoading, refresh: refreshVideos } = useVideos();
   
-  const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'videos' | 'projects' | 'users'>('downloads');
+  const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'projects' | 'users'>('downloads');
   const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -37,12 +36,90 @@ export default function AdminPage() {
   // Form States
   const [formId, setFormId] = useState('');
   const [formTitle, setFormTitle] = useState('');
-  const [formPrice, setFormPrice] = useState('€0.00');
+  const [formPrice, setFormPrice] = useState('FREE');
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formCategory, setFormCategory] = useState<'free' | 'premium' | 'early-access'>('free');
   const [formDesc, setFormDesc] = useState('');
-  const [formFeatured, setFormFeatured] = useState(false);
+  const [formDownloadType, setFormDownloadType] = useState<'file' | 'copy'>('file');
+  const [formFileUrl, setFormFileUrl] = useState('');
+  const [formCopyIcon, setFormCopyIcon] = useState('link');
+  const [formCopyTitle, setFormCopyTitle] = useState('');
+  const [formCopyDesc, setFormCopyDesc] = useState('');
+  const [formCopyText, setFormCopyText] = useState('');
+  const [formCopyBtnText, setFormCopyBtnText] = useState('Copy URL');
+  const [formActions, setFormActions] = useState<DownloadAction[]>([]);
   const [editingDl, setEditingDl] = useState<Download | null>(null);
+
+  // Single Action Form States
+  const [actionFormId, setActionFormId] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<'file' | 'copy'>('file');
+  const [actionLabel, setActionLabel] = useState('');
+  const [actionFileUrl, setActionFileUrl] = useState('');
+  const [actionCopyIcon, setActionCopyIcon] = useState('link');
+  const [actionCopyTitle, setActionCopyTitle] = useState('');
+  const [actionCopyDesc, setActionCopyDesc] = useState('');
+  const [actionCopyText, setActionCopyText] = useState('');
+  const [actionCopyBtnText, setActionCopyBtnText] = useState('Copy URL');
+
+  const clearActionForm = () => {
+    setActionFormId(null);
+    setActionType('file');
+    setActionLabel('');
+    setActionFileUrl('');
+    setActionCopyIcon('link');
+    setActionCopyTitle('');
+    setActionCopyDesc('');
+    setActionCopyText('');
+    setActionCopyBtnText('Copy URL');
+  };
+
+  const handleSaveAction = () => {
+    setApiError('');
+    if (actionType === 'file' && !actionFileUrl) {
+      setApiError('File URL is required for file action.');
+      return;
+    }
+    if (actionType === 'copy' && !actionCopyText) {
+      setApiError('Text to copy is required for copy action.');
+      return;
+    }
+
+    const newAction: DownloadAction = {
+      id: actionFormId || Date.now().toString(),
+      type: actionType,
+      label: actionType === 'file' ? actionLabel : undefined,
+      fileUrl: actionType === 'file' ? actionFileUrl : undefined,
+      copyIcon: actionType === 'copy' ? actionCopyIcon : undefined,
+      copyTitle: actionType === 'copy' ? actionCopyTitle : undefined,
+      copyDesc: actionType === 'copy' ? actionCopyDesc : undefined,
+      copyText: actionType === 'copy' ? actionCopyText : undefined,
+      copyBtnText: actionType === 'copy' ? actionCopyBtnText : undefined,
+    };
+
+    if (actionFormId) {
+      setFormActions(prev => prev.map(a => a.id === actionFormId ? newAction : a));
+    } else {
+      setFormActions(prev => [...prev, newAction]);
+    }
+    clearActionForm();
+  };
+
+  const handleEditAction = (act: DownloadAction) => {
+    setActionFormId(act.id);
+    setActionType(act.type);
+    setActionLabel(act.label || '');
+    setActionFileUrl(act.fileUrl || '');
+    setActionCopyIcon(act.copyIcon || 'link');
+    setActionCopyTitle(act.copyTitle || '');
+    setActionCopyDesc(act.copyDesc || '');
+    setActionCopyText(act.copyText || '');
+    setActionCopyBtnText(act.copyBtnText || 'Copy URL');
+  };
+
+  const handleRemoveAction = (id: string) => {
+    setFormActions(prev => prev.filter(a => a.id !== id));
+    if (actionFormId === id) clearActionForm();
+  };
 
   const getTodayDateString = () => {
     const d = new Date();
@@ -61,14 +138,6 @@ export default function AdminPage() {
   const [newsFormMediaUrl, setNewsFormMediaUrl] = useState('');
   const [newsFormReadMoreUrl, setNewsFormReadMoreUrl] = useState('');
   const [editingNews, setEditingNews] = useState<any | null>(null);
-
-  // Video Form States
-  const [videoFormId, setVideoFormId] = useState('');
-  const [videoFormTitle, setVideoFormTitle] = useState('');
-  const [videoFormThumbnail, setVideoFormThumbnail] = useState('');
-  const [videoFormUrl, setVideoFormUrl] = useState('');
-  const [videoFormOrder, setVideoFormOrder] = useState<number>(0);
-  const [editingVideo, setEditingVideo] = useState<any | null>(null);
 
   // ── PROJECT FORM STATES ──────────────────────────────────────────────
   const [projFormId, setProjFormId] = useState('');
@@ -103,6 +172,37 @@ export default function AdminPage() {
   // Misc
   const [projFormFeatured, setProjFormFeatured] = useState(false);
   const [editingProject, setEditingProject] = useState<any | null>(null);
+
+  const [uploadingState, setUploadingState] = useState<{ [key: string]: boolean }>({});
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    fieldKey: string,
+    setUrl: (url: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingState(prev => ({ ...prev, [fieldKey]: true }));
+    setApiError('');
+    setApiSuccess('');
+    try {
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      setUrl(url);
+      setApiSuccess(`Uploaded ${file.name} successfully!`);
+    } catch (err: any) {
+      console.error(err);
+      let msg = err.message || 'Failed to upload file to Firebase Storage.';
+      if (msg.includes('permission') || msg.includes('unauthorized') || msg.includes('Permission')) {
+        msg = 'Firebase Storage Permission Error: Please update your Storage Security Rules in the Firebase Console (Rules tab) to: \n\nallow read, write: if true; \n\nso files can be uploaded without authentication.';
+      }
+      setApiError(msg);
+    } finally {
+      setUploadingState(prev => ({ ...prev, [fieldKey]: false }));
+    }
+  };
 
   const STATUS_COLORS = ['emerald', 'cyan', 'amber', 'rose', 'blue', 'purple', 'zinc', 'white'];
   const ICON_OPTIONS = ['github', 'star', 'external-link', 'globe', 'code', 'download', 'play'];
@@ -269,7 +369,7 @@ export default function AdminPage() {
           redirectLink: projFormRedirectLink || null,
           images: projFormImages,
           versions: projFormVersions,
-          featured: projFormFeatured,
+          featured: false,
         }),
       });
       const data = await response.json();
@@ -343,11 +443,19 @@ export default function AdminPage() {
   const clearForm = () => {
     setFormId('');
     setFormTitle('');
-    setFormPrice('€0.00');
+    setFormPrice('FREE');
     setFormImageUrl('');
     setFormCategory('free');
     setFormDesc('');
-    setFormFeatured(false);
+    setFormDownloadType('file');
+    setFormFileUrl('');
+    setFormCopyIcon('link');
+    setFormCopyTitle('');
+    setFormCopyDesc('');
+    setFormCopyText('');
+    setFormCopyBtnText('Copy URL');
+    setFormActions([]);
+    clearActionForm();
     setEditingDl(null);
   };
 
@@ -355,11 +463,19 @@ export default function AdminPage() {
     setEditingDl(dl);
     setFormId(dl.id);
     setFormTitle(dl.title);
-    setFormPrice(dl.price);
+    setFormPrice(dl.price === 'FREE' || dl.price === 'PREMIUM' ? dl.price : 'FREE');
     setFormImageUrl(dl.imageUrl);
     setFormCategory(dl.category);
     setFormDesc(dl.description || '');
-    setFormFeatured(dl.featured === true);
+    setFormDownloadType(dl.downloadType || 'file');
+    setFormFileUrl(dl.fileUrl || '');
+    setFormCopyIcon(dl.copyIcon || 'link');
+    setFormCopyTitle(dl.copyTitle || '');
+    setFormCopyDesc(dl.copyDesc || '');
+    setFormCopyText(dl.copyText || '');
+    setFormCopyBtnText(dl.copyBtnText || 'Copy URL');
+    setFormActions(dl.actions || []);
+    clearActionForm();
     setApiError('');
     setApiSuccess('');
   };
@@ -391,7 +507,15 @@ export default function AdminPage() {
           imageUrl: formImageUrl,
           category: formCategory,
           description: formDesc,
-          featured: formFeatured
+          featured: false,
+          downloadType: formDownloadType,
+          fileUrl: formFileUrl,
+          copyIcon: formCopyIcon,
+          copyTitle: formCopyTitle,
+          copyDesc: formCopyDesc,
+          copyText: formCopyText,
+          copyBtnText: formCopyBtnText,
+          actions: formActions,
         })
       });
 
@@ -446,45 +570,7 @@ export default function AdminPage() {
     }
   };
 
-  // Inline download updates (from 3-dots menu actions)
-  const handleUpdateDownloadField = async (dl: Download, updates: Partial<Download>) => {
-    setApiError('');
-    setApiSuccess('');
-    setActionLoading(true);
 
-    try {
-      const response = await fetch('/.netlify/functions/manage-downloads', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          id: dl.id,
-          title: dl.title,
-          price: dl.price,
-          imageUrl: dl.imageUrl,
-          category: dl.category,
-          description: dl.description || '',
-          featured: updates.featured !== undefined ? updates.featured : (dl.featured === true)
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Server error occurred.');
-      }
-
-      setApiSuccess(`Download "${dl.title}" updated successfully!`);
-      refreshDownloads();
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || 'Action failed.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // News Handlers
   const clearNewsForm = () => {
@@ -593,167 +679,7 @@ export default function AdminPage() {
     }
   };
 
-  // Video Mutation Handlers
-  const clearVideoForm = () => {
-    setVideoFormId('');
-    setVideoFormTitle('');
-    setVideoFormThumbnail('');
-    setVideoFormUrl('');
-    setVideoFormOrder(0);
-    setEditingVideo(null);
-  };
 
-  const handleEditVideoClick = (item: any) => {
-    setEditingVideo(item);
-    setVideoFormId(item.id);
-    setVideoFormTitle(item.title);
-    setVideoFormThumbnail(item.thumbnail);
-    setVideoFormUrl(item.url);
-    setVideoFormOrder(item.order || 0);
-    setApiError('');
-    setApiSuccess('');
-  };
-
-  const handleVideoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiError('');
-    setApiSuccess('');
-
-    if (!videoFormId || !videoFormTitle || !videoFormThumbnail || !videoFormUrl) {
-      setApiError('ID, Title, Thumbnail, and Link (URL) are required.');
-      return;
-    }
-
-    setActionLoading(true);
-    const method = editingVideo ? 'PUT' : 'POST';
-
-    // Limit validation
-    if (!editingVideo && videos.length >= 3) {
-      setApiError('Validation Error: A maximum of 3 videos can be featured, but you are trying to add a 4th video.');
-      setActionLoading(false);
-      return;
-    }
-
-    const finalOrder = editingVideo 
-      ? videoFormOrder 
-      : (videos.length > 0 ? Math.max(...videos.map(v => v.order)) + 1 : 0);
-
-    try {
-      const response = await fetch('/.netlify/functions/manage-videos', {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          id: videoFormId,
-          title: videoFormTitle,
-          thumbnail: videoFormThumbnail,
-          url: videoFormUrl,
-          order: finalOrder
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Server error occurred.');
-      }
-
-      setApiSuccess(editingVideo ? 'Video updated successfully!' : 'Video added successfully!');
-      clearVideoForm();
-      refreshVideos();
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || 'Action failed.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDeleteVideo = async (id: string) => {
-    if (!confirm(`Are you sure you want to delete video ID: ${id}?`)) return;
-
-    setApiError('');
-    setApiSuccess('');
-    setActionLoading(true);
-
-    try {
-      const response = await fetch('/.netlify/functions/manage-videos', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Server error occurred.');
-      }
-
-      setApiSuccess('Video deleted successfully!');
-      refreshVideos();
-      if (editingVideo?.id === id) clearVideoForm();
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || 'Failed to delete video.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleMoveVideo = async (index: number, direction: 'up' | 'down') => {
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= videos.length) return;
-
-    setActionLoading(true);
-    setApiError('');
-    setApiSuccess('');
-
-    try {
-      const videoA = { ...videos[index] };
-      const videoB = { ...videos[targetIdx] };
-
-      const tempOrder = videoA.order;
-      videoA.order = videoB.order;
-      videoB.order = tempOrder;
-
-      const updateVideo = async (vid: any) => {
-        const res = await fetch('/.netlify/functions/manage-videos', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            id: vid.id,
-            title: vid.title,
-            thumbnail: vid.thumbnail,
-            url: vid.url,
-            order: vid.order
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Failed to swap video orders.');
-        }
-      };
-
-      await updateVideo(videoA);
-      await updateVideo(videoB);
-
-      setApiSuccess('Videos reordered successfully!');
-      refreshVideos();
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || 'Failed to reorder videos.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // Close menus on outside click
   useEffect(() => {
@@ -828,12 +754,6 @@ export default function AdminPage() {
               <Newspaper size={14} /> News
             </button>
             <button
-              onClick={() => setActiveTab('videos')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'videos' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
-            >
-              <Video size={14} /> Videos
-            </button>
-            <button
               onClick={() => setActiveTab('projects')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'projects' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
             >
@@ -897,7 +817,15 @@ export default function AdminPage() {
                     <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Category</label>
                     <select
                       value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value as any)}
+                      onChange={(e) => {
+                        const cat = e.target.value as 'free' | 'premium' | 'early-access';
+                        setFormCategory(cat);
+                        if (cat === 'free') {
+                          setFormPrice('FREE');
+                        } else if (cat === 'premium') {
+                          setFormPrice('PREMIUM');
+                        }
+                      }}
                       className="w-full bg-zinc-950/50 text-white text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
                     >
                       <option value="free">Free Stuff</option>
@@ -909,14 +837,16 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Price</label>
-                    <input
-                      type="text"
+                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Price Tier</label>
+                    <select
+                      disabled={formCategory !== 'early-access'}
                       value={formPrice}
                       onChange={(e) => setFormPrice(e.target.value)}
-                      placeholder="e.g. €0.00"
-                      className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                    />
+                      className="w-full bg-zinc-950/50 text-white text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all disabled:opacity-50"
+                    >
+                      <option value="FREE">FREE (Green Text)</option>
+                      <option value="PREMIUM">PREMIUM (Yellow/Amber Text)</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Title</label>
@@ -932,13 +862,25 @@ export default function AdminPage() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Image URL</label>
-                  <input
-                    type="text"
-                    value={formImageUrl}
-                    onChange={(e) => setFormImageUrl(e.target.value)}
-                    placeholder="e.g. https://domain.com/image.png"
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                  />
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="e.g. https://domain.com/image.png"
+                      className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
+                    />
+                    <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
+                      {uploadingState['formImageUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'formImageUrl', setFormImageUrl)}
+                        className="hidden"
+                        disabled={uploadingState['formImageUrl']}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -946,23 +888,171 @@ export default function AdminPage() {
                   <textarea
                     value={formDesc}
                     onChange={(e) => setFormDesc(e.target.value)}
-                    placeholder="Brief summary displayed when featured on home page."
+                    placeholder="Brief summary describing this asset."
                     rows={3}
                     className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all resize-none"
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-white/2 border border-white/5">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-zinc-200">Featured On Homepage</span>
-                    <span className="text-[10px] text-purple-400 mt-0.5">Maximum 3 downloads can be featured</span>
+                {/* List of Actions */}
+                <div className="space-y-2 border-t border-white/5 pt-3">
+                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase flex items-center gap-1">Download Actions / Buttons</label>
+                  {formActions.length > 0 && (
+                    <div className="space-y-1.5">
+                      {formActions.map((act) => (
+                        <div key={act.id} className="flex items-center justify-between p-2.5 rounded-lg bg-white/3 border border-white/8">
+                          <div className="min-w-0 flex-1">
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded capitalize ${act.type === 'file' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>{act.type}</span>
+                            <span className="text-[10px] text-zinc-300 ml-2 truncate">
+                              {act.type === 'file' ? (act.label || act.fileUrl) : (act.copyTitle || act.copyText)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button type="button" onClick={() => handleEditAction(act)}
+                              className="px-2 py-1 text-[10px] rounded bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white cursor-pointer">Edit</button>
+                            <button type="button" onClick={() => handleRemoveAction(act.id)}
+                              className="p-1 text-red-400 hover:text-red-300 cursor-pointer"><Trash2 size={11} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Add/Edit Action Box */}
+                  <div className="p-3 rounded-xl bg-zinc-950/45 border border-white/5 space-y-3">
+                    <p className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest">
+                      {actionFormId ? 'Edit Action Item' : 'Add Action Item'}
+                    </p>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase">Action Type</label>
+                      <select
+                        value={actionType}
+                        onChange={(e) => setActionType(e.target.value as 'file' | 'copy')}
+                        className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                      >
+                        <option value="file">File Download Button</option>
+                        <option value="copy">Copy Text Box (OBS Style)</option>
+                      </select>
+                    </div>
+
+                    {actionType === 'file' ? (
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">Button Label</label>
+                          <input
+                            type="text"
+                            value={actionLabel}
+                            onChange={(e) => setActionLabel(e.target.value)}
+                            placeholder="e.g. Download Codex Installer"
+                            className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">File Download URL</label>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={actionFileUrl}
+                              onChange={(e) => setActionFileUrl(e.target.value)}
+                              placeholder="https://... or upload file"
+                              className="flex-grow bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                            />
+                            <label className="flex-shrink-0 flex items-center justify-center h-[30px] px-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
+                              {uploadingState['actionFileUrl'] ? <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" /> : 'Upload File'}
+                              <input
+                                type="file"
+                                onChange={(e) => handleFileUpload(e, 'actionFileUrl', setActionFileUrl)}
+                                className="hidden"
+                                disabled={uploadingState['actionFileUrl']}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-zinc-500 uppercase">Copy Icon</label>
+                            <select
+                              value={actionCopyIcon}
+                              onChange={(e) => setActionCopyIcon(e.target.value)}
+                              className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                            >
+                              <option value="link">Link Icon 🔗</option>
+                              <option value="copy">Copy Icon 📋</option>
+                              <option value="code">Code Icon 💻</option>
+                              <option value="terminal">Terminal Icon 🐚</option>
+                              <option value="external-link">External Link ↗</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-zinc-500 uppercase">Button Text</label>
+                            <input
+                              type="text"
+                              value={actionCopyBtnText}
+                              onChange={(e) => setActionCopyBtnText(e.target.value)}
+                              placeholder="e.g. Copy URL"
+                              className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">Title</label>
+                          <input
+                            type="text"
+                            value={actionCopyTitle}
+                            onChange={(e) => setActionCopyTitle(e.target.value)}
+                            placeholder="e.g. Browser Source URL"
+                            className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">Description</label>
+                          <input
+                            type="text"
+                            value={actionCopyDesc}
+                            onChange={(e) => setActionCopyDesc(e.target.value)}
+                            placeholder="e.g. Add this as a browser source to OBS."
+                            className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">Text to Copy</label>
+                          <textarea
+                            value={actionCopyText}
+                            onChange={(e) => setActionCopyText(e.target.value)}
+                            placeholder="Link or code snippet"
+                            rows={2}
+                            className="w-full bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none resize-none font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-1">
+                      {actionFormId && (
+                        <button
+                          type="button"
+                          onClick={clearActionForm}
+                          className="flex-1 py-1.5 rounded-lg text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSaveAction}
+                        className="flex-grow py-1.5 rounded-lg text-[10px] font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all cursor-pointer"
+                      >
+                        {actionFormId ? 'Save Action' : 'Add Action Item'}
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={formFeatured}
-                    onChange={(e) => setFormFeatured(e.target.checked)}
-                    className="h-4 w-4 rounded border-white/5 bg-zinc-950 text-purple-600 focus:ring-0 cursor-pointer"
-                  />
                 </div>
 
                 <button
@@ -989,9 +1079,6 @@ export default function AdminPage() {
                 <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
                   Database Collections ({downloads.length})
                 </h2>
-                <div className="text-[10px] bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/10 font-bold">
-                  Featured: {featuredDownloads.length}/3
-                </div>
               </div>
 
               {downloadsLoading ? (
@@ -1002,11 +1089,10 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                   {downloads.map((dl) => {
-                    const isDlFeatured = dl.featured === true;
                     return (
                       <div 
                         key={dl.id}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isDlFeatured ? 'border-purple-500/20 bg-purple-500/2' : 'border-white/5 bg-zinc-950/20 hover:border-white/10'}`}
+                        className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:border-white/10 transition-all"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-950/50 px-2 py-1 rounded-md">ID {dl.id}</span>
@@ -1016,14 +1102,9 @@ export default function AdminPage() {
                               <span className={`text-[8px] font-extrabold px-1 rounded text-purple-400 bg-purple-500/10 uppercase`}>
                                 {dl.category}
                               </span>
-                              <span className={`text-[8px] font-extrabold px-1 rounded text-emerald-400 bg-emerald-500/10`}>
+                              <span className={`text-[8px] font-extrabold px-1 rounded ${dl.price === 'FREE' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'}`}>
                                 {dl.price}
                               </span>
-                              {isDlFeatured && (
-                                <span className="text-[8px] font-extrabold text-purple-400 bg-purple-500/10 px-1 rounded border border-purple-500/10">
-                                  ★ FEATURED
-                                </span>
-                              )}
                             </div>
                             <p className="text-[10px] text-zinc-500 truncate mt-0.5 max-w-[280px]">
                               {dl.description || 'No description provided.'}
@@ -1045,29 +1126,6 @@ export default function AdminPage() {
 
                           {openMenuId === dl.id && (
                             <div className="absolute right-0 mt-1.5 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-fadeIn">
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  setOpenMenuId(null);
-                                  // Toggle Featured status
-                                  const isDlFeatured = dl.featured === true;
-                                  if (!isDlFeatured) {
-                                    // Check total featured count
-                                    const currentFeatured = downloads.filter(d => d.featured === true).length;
-                                    if (currentFeatured >= 3) {
-                                      alert('Validation Error: A maximum of 3 downloads can be featured, but you are trying to feature a 4th download.');
-                                      return;
-                                    }
-                                  }
-                                  await handleUpdateDownloadField(dl, { featured: !isDlFeatured });
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-white/5 text-xs text-zinc-300 hover:text-white transition-colors"
-                              >
-                                {isDlFeatured ? 'Unfeature Download' : 'Feature Download'}
-                              </button>
-
-                              <hr className="border-white/5 my-1" />
-
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1188,13 +1246,25 @@ export default function AdminPage() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Media URL (Optional)</label>
-                  <input
-                    type="text"
-                    value={newsFormMediaUrl}
-                    onChange={(e) => setNewsFormMediaUrl(e.target.value)}
-                    placeholder="Image URL or YouTube video link"
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                  />
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={newsFormMediaUrl}
+                      onChange={(e) => setNewsFormMediaUrl(e.target.value)}
+                      placeholder="Image URL or YouTube video link"
+                      className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
+                    />
+                    <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
+                      {uploadingState['newsFormMediaUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'newsFormMediaUrl', setNewsFormMediaUrl)}
+                        className="hidden"
+                        disabled={uploadingState['newsFormMediaUrl']}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -1303,170 +1373,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB CONTENT: VIDEOS MANAGER */}
-        {activeTab === 'videos' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* 1. Video Form */}
-            <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-6 h-fit backdrop-blur-md space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
-                  {editingVideo ? 'Edit Video' : 'Add Video'}
-                </h2>
-                {editingVideo && (
-                  <button 
-                    onClick={clearVideoForm}
-                    className="text-[10px] text-zinc-500 hover:text-white bg-zinc-950/50 px-2.5 py-1 rounded-md"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
 
-              <form onSubmit={handleVideoSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Slug/ID</label>
-                  <input
-                    type="text"
-                    disabled={!!editingVideo}
-                    value={videoFormId}
-                    onChange={(e) => setVideoFormId(e.target.value)}
-                    placeholder="video_X"
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Title</label>
-                  <input
-                    type="text"
-                    value={videoFormTitle}
-                    onChange={(e) => setVideoFormTitle(e.target.value)}
-                    placeholder="Video title"
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Thumbnail URL</label>
-                  <input
-                    type="text"
-                    value={videoFormThumbnail}
-                    onChange={(e) => setVideoFormThumbnail(e.target.value)}
-                    placeholder="Image link"
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Redirect Link (URL)</label>
-                  <input
-                    type="text"
-                    value={videoFormUrl}
-                    onChange={(e) => setVideoFormUrl(e.target.value)}
-                    placeholder="https://youtube.com/watch?v=..."
-                    className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : editingVideo ? (
-                    'Save Changes'
-                  ) : (
-                    <>
-                      <Plus size={14} /> Add Video
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* 2. Videos Grid/List */}
-            <div className="lg:col-span-2 bg-zinc-900/30 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
-              <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
-                <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
-                  Videos Collection ({videos.length})
-                </h2>
-                <div className="text-[10px] bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/10 font-bold">
-                  Featured: {videos.length}/3
-                </div>
-              </div>
-
-              {videosLoading ? (
-                <div className="py-12 flex flex-col items-center gap-2 text-zinc-500 text-xs">
-                  <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
-                  <span>Loading database...</span>
-                </div>
-              ) : (
-                <div className="space-y-2 pr-1">
-                  {videos.map((item, index) => (
-                    <div 
-                      key={item.id}
-                      className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:border-white/10 transition-all"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-950/50 px-2 py-1 rounded-md">Order {index + 1}</span>
-                        <div className="truncate">
-                          <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
-                          <p className="text-[10px] text-zinc-500 truncate mt-0.5 max-w-[280px]">
-                            {item.url}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* Reorder Buttons */}
-                        <button
-                          disabled={index === 0 || actionLoading}
-                          onClick={(e) => { e.stopPropagation(); handleMoveVideo(index, 'up'); }}
-                          className="px-2 py-1 text-xs rounded bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                          title="Move Up"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          disabled={index === videos.length - 1 || actionLoading}
-                          onClick={(e) => { e.stopPropagation(); handleMoveVideo(index, 'down'); }}
-                          className="px-2 py-1 text-xs rounded bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                          title="Move Down"
-                        >
-                          ▼
-                        </button>
-                        
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleEditVideoClick(item); }}
-                          className="p-2 rounded-lg bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer"
-                          title="Edit"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteVideo(item.id); }}
-                          className="p-2 rounded-lg bg-red-500/5 border border-red-500/10 text-red-400 hover:text-white hover:bg-red-500 transition-all cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {videos.length === 0 && (
-                    <div className="py-12 text-center text-zinc-500 text-xs">
-                      No custom videos added to database.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* TAB CONTENT: PROJECTS MANAGER */}
         {activeTab === 'projects' && (
@@ -1631,9 +1538,21 @@ export default function AdminPage() {
                     <div className="space-y-2">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-zinc-600 uppercase">Image / YouTube URL</label>
-                        <input type="text" value={projFormQvImgUrl} onChange={(e) => setProjFormQvImgUrl(e.target.value)}
-                          placeholder="https://... or YouTube link"
-                          className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                        <div className="flex gap-2 items-center">
+                          <input type="text" value={projFormQvImgUrl} onChange={(e) => setProjFormQvImgUrl(e.target.value)}
+                            placeholder="https://... or YouTube link"
+                            className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                          <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
+                            {uploadingState['projFormQvImgUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleFileUpload(e, 'projFormQvImgUrl', setProjFormQvImgUrl)}
+                              className="hidden"
+                              disabled={uploadingState['projFormQvImgUrl']}
+                            />
+                          </label>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-zinc-600 uppercase">Redirect Link (optional, on click)</label>
@@ -1682,9 +1601,21 @@ export default function AdminPage() {
                       </div>
                     )}
                     <div className="p-3 rounded-xl bg-zinc-950/40 border border-white/5 space-y-2">
-                      <input type="text" value={projFormImgUrl} onChange={(e) => setProjFormImgUrl(e.target.value)}
-                        placeholder="Image URL or YouTube link"
-                        className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                      <div className="flex gap-2 items-center">
+                        <input type="text" value={projFormImgUrl} onChange={(e) => setProjFormImgUrl(e.target.value)}
+                          placeholder="Image URL or YouTube link"
+                          className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                        <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
+                          {uploadingState['projFormImgUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleFileUpload(e, 'projFormImgUrl', setProjFormImgUrl)}
+                            className="hidden"
+                            disabled={uploadingState['projFormImgUrl']}
+                          />
+                        </label>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <input type="text" value={projFormImgRedirect} onChange={(e) => setProjFormImgRedirect(e.target.value)}
                           placeholder="Click redirect (optional)"
@@ -1741,12 +1672,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Featured */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-white/2 border border-white/5">
-                  <span className="text-xs font-bold text-zinc-200">Featured on Homepage</span>
-                  <input type="checkbox" checked={projFormFeatured} onChange={(e) => setProjFormFeatured(e.target.checked)}
-                    className="h-4 w-4 rounded border-white/5 bg-zinc-950 text-purple-600 focus:ring-0 cursor-pointer" />
-                </div>
+
 
                 <button type="submit" disabled={actionLoading}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all disabled:opacity-50 cursor-pointer">
@@ -1779,9 +1705,7 @@ export default function AdminPage() {
                             {proj.statusText && (
                               <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-white/8 text-zinc-300">{proj.statusText}</span>
                             )}
-                            {proj.featured && (
-                              <span className="text-[8px] font-extrabold text-purple-400 bg-purple-500/10 px-1 rounded border border-purple-500/10">★ FEATURED</span>
-                            )}
+
                           </div>
                           <p className="text-[10px] text-zinc-500 truncate mt-0.5 max-w-[320px]">{proj.description}</p>
                           {proj.tags && proj.tags.length > 0 && (

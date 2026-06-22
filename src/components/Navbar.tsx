@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2, Sparkles } from 'lucide-react';
+import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2, Sparkles, Gift, Gem, Clock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Navbar() {
@@ -299,7 +299,7 @@ export default function Navbar() {
                   onClick={() => setActiveMenu(null)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
                 >
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <Gift size={16} className="text-emerald-500" />
                   Free Stuff
                 </Link>
               </li>
@@ -309,7 +309,7 @@ export default function Navbar() {
                   onClick={() => setActiveMenu(null)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
                 >
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <Gem size={16} className="text-amber-500" />
                   Premium
                 </Link>
               </li>
@@ -319,7 +319,7 @@ export default function Navbar() {
                   onClick={() => setActiveMenu(null)}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
                 >
-                  <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+                  <Clock size={16} className="text-purple-500" />
                   Early Access
                 </Link>
               </li>

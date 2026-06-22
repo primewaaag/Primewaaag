@@ -56,7 +56,7 @@ export const handler: Handler = async (event) => {
 
     // 1. ADD NEW DOWNLOAD (POST)
     if (event.httpMethod === 'POST') {
-      const { id, title, price, imageUrl, category, description, featured } = body;
+      const { id, title, price, imageUrl, category, description, featured, downloadType, fileUrl, copyIcon, copyTitle, copyDesc, copyText, copyBtnText, actions } = body;
       if (!id || !title || !price || !imageUrl || !category) {
         return {
           statusCode: 400,
@@ -94,6 +94,14 @@ export const handler: Handler = async (event) => {
         category,
         description: description || '',
         featured: featured || false,
+        downloadType: downloadType || 'file',
+        fileUrl: fileUrl || '',
+        copyIcon: copyIcon || '',
+        copyTitle: copyTitle || '',
+        copyDesc: copyDesc || '',
+        copyText: copyText || '',
+        copyBtnText: copyBtnText || '',
+        actions: actions || [],
       });
 
       return {
@@ -105,7 +113,7 @@ export const handler: Handler = async (event) => {
 
     // 2. UPDATE DOWNLOAD (PUT)
     if (event.httpMethod === 'PUT') {
-      const { id, title, price, imageUrl, category, description, featured } = body;
+      const { id, title, price, imageUrl, category, description, featured, downloadType, fileUrl, copyIcon, copyTitle, copyDesc, copyText, copyBtnText, actions } = body;
       if (!id || !title || !price || !imageUrl || !category) {
         return {
           statusCode: 400,
@@ -143,6 +151,14 @@ export const handler: Handler = async (event) => {
         category,
         description: description || '',
         featured: featured || false,
+        downloadType: downloadType || 'file',
+        fileUrl: fileUrl || '',
+        copyIcon: copyIcon || '',
+        copyTitle: copyTitle || '',
+        copyDesc: copyDesc || '',
+        copyText: copyText || '',
+        copyBtnText: copyBtnText || '',
+        actions: actions || [],
       });
 
       return {
