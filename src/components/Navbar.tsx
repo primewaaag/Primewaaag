@@ -158,7 +158,7 @@ export default function Navbar() {
         {/* BRAND LOGO */}
         <Link href="/" className="flex items-center">
           <img
-            src="/primewaaag.webp"
+            src="/logo.svg"
             alt="Logo"
             className="nav-capsule-logo hover:scale-[1.03] transition-transform filter drop-shadow-[0_0_15px_rgba(168,85,247,0.15)]"
           />
@@ -168,9 +168,8 @@ export default function Navbar() {
         <div className="nav-capsule-menu">
           <ul>
             <li
-              className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-opacity ${
-                activeMenu === 'downloads' ? 'opacity-100 active' : 'opacity-60 hover:opacity-100'
-              }`}
+              className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-opacity ${activeMenu === 'downloads' ? 'opacity-100 active' : 'opacity-60 hover:opacity-100'
+                }`}
               onMouseEnter={(e) => handleMouseEnter('downloads', e)}
               onMouseLeave={handleMouseLeave}
             >
@@ -213,9 +212,8 @@ export default function Navbar() {
         <div className="ml-auto flex items-center gap-6">
           {/* SOCIALS TRIGGER WITH ICON (LEFT OF LOGIN) */}
           <div
-            className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer opacity-60 hover:opacity-100 transition-opacity ${
-              activeMenu === 'socials' ? 'opacity-100 active' : ''
-            }`}
+            className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer opacity-60 hover:opacity-100 transition-opacity ${activeMenu === 'socials' ? 'opacity-100 active' : ''
+              }`}
             onMouseEnter={(e) => handleMouseEnter('socials', e)}
             onMouseLeave={handleMouseLeave}
             onClick={(e) => handleTriggerClick('socials', e)}
@@ -226,9 +224,8 @@ export default function Navbar() {
 
           {user ? (
             <div
-              className={`flex items-center gap-2 py-1.5 px-3 rounded-full hover:bg-white/[0.04] cursor-pointer transition-all border border-transparent hover:border-white/10 ${
-                activeMenu === 'account' ? 'bg-white/[0.04] border-white/10' : ''
-              }`}
+              className={`flex items-center gap-2 py-1.5 px-3 rounded-full hover:bg-white/[0.04] cursor-pointer transition-all border border-transparent hover:border-white/10 ${activeMenu === 'account' ? 'bg-white/[0.04] border-white/10' : ''
+                }`}
               onMouseEnter={(e) => handleMouseEnter('account', e)}
               onMouseLeave={handleMouseLeave}
               onClick={(e) => handleTriggerClick('account', e)}
@@ -261,7 +258,7 @@ export default function Navbar() {
         {/* BRAND LOGO */}
         <Link href="/" className="flex items-center">
           <img
-            src="/primewaaag.webp"
+            src="/logo.svg"
             alt="Logo"
             className="h-7 w-auto object-contain"
           />
@@ -280,9 +277,8 @@ export default function Navbar() {
       {renderedMenu && (
         <div
           ref={submenuRef}
-          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''} ${
-            renderedMenu === 'socials' || renderedMenu === 'downloads' ? 'light-dropdown' : ''
-          }`}
+          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''} ${renderedMenu === 'socials' || renderedMenu === 'downloads' ? 'light-dropdown' : ''
+            }`}
           style={{
             translate: `${submenuX}px 0px`
           }}
