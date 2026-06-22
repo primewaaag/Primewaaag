@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -26,7 +25,6 @@ export default function AccountsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Prepopulate username when user state becomes available
   useEffect(() => {
@@ -84,7 +82,7 @@ export default function AccountsPage() {
     return (
       <main className="min-h-screen text-white flex flex-col items-center justify-center relative overflow-hidden px-4">
         <div className="glow-blob-1 z-0" />
-        <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+        <Navbar />
         <div className="max-w-md w-full glass-panel border border-white/5 p-8 rounded-3xl text-center space-y-6 relative z-10 mt-20">
           <div className="h-12 w-12 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 mx-auto">
             <Shield size={24} />
@@ -102,7 +100,6 @@ export default function AccountsPage() {
             Sign In
           </Link>
         </div>
-        <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       </main>
     );
   }
@@ -128,7 +125,7 @@ export default function AccountsPage() {
       <div className="glow-blob-1 z-0" />
       <div className="glow-blob-2 z-0" />
 
-      <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+      <Navbar />
 
       <div className="relative z-10 pt-28 pb-24 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto space-y-6">
         
@@ -140,7 +137,7 @@ export default function AccountsPage() {
           <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-1" />
           Back to Home
         </Link>
-
+        
         {/* Profile Card */}
         <div className="glass-panel border border-white/5 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden space-y-8">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-linear-to-r from-transparent via-purple-500/20 to-transparent" />
@@ -312,7 +309,6 @@ export default function AccountsPage() {
 
         </div>
       </div>
-      <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </main>
   );
 }

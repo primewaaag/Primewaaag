@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
-import { useExtensions } from '@/hooks/useExtensions';
+import { useDownloads } from '@/hooks/useDownloads';
 import { useNews } from '@/hooks/useNews';
 import { useVideos } from '@/hooks/useVideos';
 import { useProjects } from '@/hooks/useProjects';
 import { VersionEntry } from '@/hooks/useProjects';
-import { Shield, Users, Puzzle, Plus, Edit2, Trash2, Check, X, Loader2, Sparkles, MoreVertical, Newspaper, Video, FolderCode, Tag, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
-import { Extension } from '@/utils/extensions';
+import { Shield, Users, Puzzle, Plus, Edit2, Trash2, Check, X, Loader2, Sparkles, MoreVertical, Newspaper, Video, FolderCode, Tag, GitBranch, ChevronDown, ChevronUp, Download as DownloadIcon } from 'lucide-react';
+import { Download } from '@/utils/downloads';
 
 interface RegisteredUser {
   id: string;
@@ -25,22 +25,24 @@ interface RegisteredUser {
 
 export default function AdminPage() {
   const { user, isAdmin, isLoading: authLoading, token } = useAuth();
-  const { extensions, featuredExtensions, isLoading: extensionsLoading, refresh: refreshExtensions } = useExtensions();
+  const { downloads, featuredDownloads, isLoading: downloadsLoading, refresh: refreshDownloads } = useDownloads();
   const { news, isLoading: newsLoading, refresh: refreshNews } = useNews();
   const { videos, isLoading: videosLoading, refresh: refreshVideos } = useVideos();
   
-  const [activeTab, setActiveTab] = useState<'extensions' | 'news' | 'videos' | 'projects' | 'users'>('extensions');
+  const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'videos' | 'projects' | 'users'>('downloads');
   const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   
   // Form States
   const [formId, setFormId] = useState('');
-  const [formName, setFormName] = useState('');
-  const [formBadge, setFormBadge] = useState<'NEW' | 'PREMIUM' | ''>('');
+  const [formTitle, setFormTitle] = useState('');
+  const [formPrice, setFormPrice] = useState('€0.00');
+  const [formImageUrl, setFormImageUrl] = useState('');
+  const [formCategory, setFormCategory] = useState<'free' | 'premium' | 'early-access'>('free');
   const [formDesc, setFormDesc] = useState('');
   const [formFeatured, setFormFeatured] = useState(false);
-  const [editingExt, setEditingExt] = useState<Extension | null>(null);
+  const [editingDl, setEditingDl] = useState<Download | null>(null);
 
   const getTodayDateString = () => {
     const d = new Date();
@@ -340,20 +342,24 @@ export default function AdminPage() {
 
   const clearForm = () => {
     setFormId('');
-    setFormName('');
-    setFormBadge('');
+    setFormTitle('');
+    setFormPrice('€0.00');
+    setFormImageUrl('');
+    setFormCategory('free');
     setFormDesc('');
     setFormFeatured(false);
-    setEditingExt(null);
+    setEditingDl(null);
   };
 
-  const handleEditClick = (ext: Extension) => {
-    setEditingExt(ext);
-    setFormId(ext.id);
-    setFormName(ext.name);
-    setFormBadge(ext.badge || '');
-    setFormDesc(ext.description || '');
-    setFormFeatured(ext.featured === true || ext.feature === true);
+  const handleEditClick = (dl: Download) => {
+    setEditingDl(dl);
+    setFormId(dl.id);
+    setFormTitle(dl.title);
+    setFormPrice(dl.price);
+    setFormImageUrl(dl.imageUrl);
+    setFormCategory(dl.category);
+    setFormDesc(dl.description || '');
+    setFormFeatured(dl.featured === true);
     setApiError('');
     setApiSuccess('');
   };
@@ -363,16 +369,16 @@ export default function AdminPage() {
     setApiError('');
     setApiSuccess('');
 
-    if (!formId || !formName) {
-      setApiError('ID and Name are required.');
+    if (!formId || !formTitle || !formPrice || !formImageUrl || !formCategory) {
+      setApiError('ID, Title, Price, Image URL, and Category are required.');
       return;
     }
 
     setActionLoading(true);
-    const method = editingExt ? 'PUT' : 'POST';
+    const method = editingDl ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch('/.netlify/functions/manage-extensions', {
+      const response = await fetch('/.netlify/functions/manage-downloads', {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -380,8 +386,10 @@ export default function AdminPage() {
         },
         body: JSON.stringify({
           id: formId,
-          name: formName,
-          badge: formBadge || null,
+          title: formTitle,
+          price: formPrice,
+          imageUrl: formImageUrl,
+          category: formCategory,
           description: formDesc,
           featured: formFeatured
         })
@@ -393,9 +401,9 @@ export default function AdminPage() {
         throw new Error(data.error || 'Server error occurred.');
       }
 
-      setApiSuccess(editingExt ? 'Extension updated successfully!' : 'Extension added successfully!');
+      setApiSuccess(editingDl ? 'Download updated successfully!' : 'Download added successfully!');
       clearForm();
-      refreshExtensions();
+      refreshDownloads();
     } catch (err: any) {
       console.error(err);
       setApiError(err.message || 'Action failed.');
@@ -405,14 +413,14 @@ export default function AdminPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(`Are you sure you want to delete extension ID: ${id}?`)) return;
+    if (!confirm(`Are you sure you want to delete download ID: ${id}?`)) return;
 
     setApiError('');
     setApiSuccess('');
     setActionLoading(true);
 
     try {
-      const response = await fetch('/.netlify/functions/manage-extensions', {
+      const response = await fetch('/.netlify/functions/manage-downloads', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -427,36 +435,38 @@ export default function AdminPage() {
         throw new Error(data.error || 'Server error occurred.');
       }
 
-      setApiSuccess('Extension deleted successfully!');
-      refreshExtensions();
-      if (editingExt?.id === id) clearForm();
+      setApiSuccess('Download deleted successfully!');
+      refreshDownloads();
+      if (editingDl?.id === id) clearForm();
     } catch (err: any) {
       console.error(err);
-      setApiError(err.message || 'Failed to delete extension.');
+      setApiError(err.message || 'Failed to delete download.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Inline extension updates (from 3-dots menu actions)
-  const handleUpdateExtensionField = async (ext: Extension, updates: Partial<Extension>) => {
+  // Inline download updates (from 3-dots menu actions)
+  const handleUpdateDownloadField = async (dl: Download, updates: Partial<Download>) => {
     setApiError('');
     setApiSuccess('');
     setActionLoading(true);
 
     try {
-      const response = await fetch('/.netlify/functions/manage-extensions', {
+      const response = await fetch('/.netlify/functions/manage-downloads', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          id: ext.id,
-          name: ext.name,
-          badge: updates.badge !== undefined ? (updates.badge || null) : (ext.badge || null),
-          description: ext.description || '',
-          featured: updates.featured !== undefined ? updates.featured : (ext.featured === true || ext.feature === true)
+          id: dl.id,
+          title: dl.title,
+          price: dl.price,
+          imageUrl: dl.imageUrl,
+          category: dl.category,
+          description: dl.description || '',
+          featured: updates.featured !== undefined ? updates.featured : (dl.featured === true)
         })
       });
 
@@ -466,8 +476,8 @@ export default function AdminPage() {
         throw new Error(data.error || 'Server error occurred.');
       }
 
-      setApiSuccess(`Extension "${ext.name}" updated successfully!`);
-      refreshExtensions();
+      setApiSuccess(`Download "${dl.title}" updated successfully!`);
+      refreshDownloads();
     } catch (err: any) {
       console.error(err);
       setApiError(err.message || 'Action failed.');
@@ -806,10 +816,10 @@ export default function AdminPage() {
           
           <div className="flex flex-wrap gap-2 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
             <button
-              onClick={() => setActiveTab('extensions')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'extensions' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+              onClick={() => setActiveTab('downloads')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'downloads' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
             >
-              <Puzzle size={14} /> Extensions
+              <DownloadIcon size={14} /> Downloads
             </button>
             <button
               onClick={() => setActiveTab('news')}
@@ -850,17 +860,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB CONTENT: EXTENSIONS MANAGER */}
-        {activeTab === 'extensions' && (
+        {/* TAB CONTENT: DOWNLOADS MANAGER */}
+        {activeTab === 'downloads' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* 1. MANAGE / ADD FORM */}
             <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-6 h-fit backdrop-blur-md space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-white/5">
                 <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
-                  {editingExt ? 'Edit Extension' : 'Add New Extension'}
+                  {editingDl ? 'Edit Download' : 'Add New Download'}
                 </h2>
-                {editingExt && (
+                {editingDl && (
                   <button 
                     onClick={clearForm}
                     className="text-[10px] text-zinc-500 hover:text-white bg-zinc-950/50 px-2.5 py-1 rounded-md"
@@ -873,43 +883,66 @@ export default function AdminPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-1 space-y-1">
-                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">ID</label>
+                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Slug / ID</label>
                     <input
                       type="text"
-                      disabled={!!editingExt}
+                      disabled={!!editingDl}
                       value={formId}
                       onChange={(e) => setFormId(e.target.value)}
-                      placeholder="e.g. 31"
+                      placeholder="e.g. starter-pack"
                       className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all disabled:opacity-50"
                     />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Badge</label>
+                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Category</label>
                     <select
-                      value={formBadge}
-                      onChange={(e) => setFormBadge(e.target.value as any)}
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value as any)}
                       className="w-full bg-zinc-950/50 text-white text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
                     >
-                      <option value="">None</option>
-                      <option value="NEW">NEW</option>
-                      <option value="PREMIUM">PREMIUM</option>
+                      <option value="free">Free Stuff</option>
+                      <option value="premium">Premium</option>
+                      <option value="early-access">Early Access</option>
                     </select>
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Price</label>
+                    <input
+                      type="text"
+                      value={formPrice}
+                      onChange={(e) => setFormPrice(e.target.value)}
+                      placeholder="e.g. €0.00"
+                      className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Title</label>
+                    <input
+                      type="text"
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="e.g. Streamer.bot Starter Pack"
+                      className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Extension Name</label>
+                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Image URL</label>
                   <input
                     type="text"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g. MUSIC PLAYER"
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(e.target.value)}
+                    placeholder="e.g. https://domain.com/image.png"
                     className="w-full bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Description (Featured block only)</label>
+                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Description (Optional)</label>
                   <textarea
                     value={formDesc}
                     onChange={(e) => setFormDesc(e.target.value)}
@@ -922,7 +955,7 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/2 border border-white/5">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-zinc-200">Featured On Homepage</span>
-                    <span className="text-[10px] text-purple-400 mt-0.5">Maximum 3 extensions can be featured</span>
+                    <span className="text-[10px] text-purple-400 mt-0.5">Maximum 3 downloads can be featured</span>
                   </div>
                   <input
                     type="checkbox"
@@ -939,60 +972,61 @@ export default function AdminPage() {
                 >
                   {actionLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : editingExt ? (
+                  ) : editingDl ? (
                     'Save Changes'
                   ) : (
                     <>
-                      <Plus size={14} /> Add Extension
+                      <Plus size={14} /> Add Download
                     </>
                   )}
                 </button>
               </form>
             </div>
 
-            {/* 2. EXTENSIONS GRID/LIST */}
+            {/* 2. DOWNLOADS GRID/LIST */}
             <div className="lg:col-span-2 bg-zinc-900/30 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
               <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
                 <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
-                  Database Collections ({extensions.length})
+                  Database Collections ({downloads.length})
                 </h2>
                 <div className="text-[10px] bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/10 font-bold">
-                  Featured: {featuredExtensions.length}/3
+                  Featured: {featuredDownloads.length}/3
                 </div>
               </div>
 
-              {extensionsLoading ? (
+              {downloadsLoading ? (
                 <div className="py-12 flex flex-col items-center gap-2 text-zinc-500 text-xs">
                   <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
                   <span>Loading database...</span>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {extensions.map((ext) => {
-                    const isExtFeatured = ext.featured === true || ext.feature === true;
+                  {downloads.map((dl) => {
+                    const isDlFeatured = dl.featured === true;
                     return (
                       <div 
-                        key={ext.id}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isExtFeatured ? 'border-purple-500/20 bg-purple-500/2' : 'border-white/5 bg-zinc-950/20 hover:border-white/10'}`}
+                        key={dl.id}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isDlFeatured ? 'border-purple-500/20 bg-purple-500/2' : 'border-white/5 bg-zinc-950/20 hover:border-white/10'}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-950/50 px-2 py-1 rounded-md">ID {ext.id}</span>
+                          <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-950/50 px-2 py-1 rounded-md">ID {dl.id}</span>
                           <div className="truncate">
                             <div className="flex items-center gap-2">
-                              <h4 className="text-xs font-bold text-white truncate">{ext.name}</h4>
-                              {ext.badge && (
-                                <span className={`text-[8px] font-extrabold px-1 rounded ${ext.badge === 'PREMIUM' ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>
-                                  {ext.badge}
-                                </span>
-                              )}
-                              {isExtFeatured && (
+                              <h4 className="text-xs font-bold text-white truncate">{dl.title}</h4>
+                              <span className={`text-[8px] font-extrabold px-1 rounded text-purple-400 bg-purple-500/10 uppercase`}>
+                                {dl.category}
+                              </span>
+                              <span className={`text-[8px] font-extrabold px-1 rounded text-emerald-400 bg-emerald-500/10`}>
+                                {dl.price}
+                              </span>
+                              {isDlFeatured && (
                                 <span className="text-[8px] font-extrabold text-purple-400 bg-purple-500/10 px-1 rounded border border-purple-500/10">
                                   ★ FEATURED
                                 </span>
                               )}
                             </div>
                             <p className="text-[10px] text-zinc-500 truncate mt-0.5 max-w-[280px]">
-                              {ext.description || 'No description provided.'}
+                              {dl.description || 'No description provided.'}
                             </p>
                           </div>
                         </div>
@@ -1001,7 +1035,7 @@ export default function AdminPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenMenuId(openMenuId === ext.id ? null : ext.id);
+                              setOpenMenuId(openMenuId === dl.id ? null : dl.id);
                             }}
                             className="p-2 rounded-lg bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer"
                             title="Options"
@@ -1009,40 +1043,27 @@ export default function AdminPage() {
                             <MoreVertical size={14} />
                           </button>
 
-                          {openMenuId === ext.id && (
+                          {openMenuId === dl.id && (
                             <div className="absolute right-0 mt-1.5 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-fadeIn">
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   setOpenMenuId(null);
-                                  // Toggle NEW badge
-                                  const newBadge = ext.badge === 'NEW' ? undefined : 'NEW';
-                                  await handleUpdateExtensionField(ext, { badge: newBadge });
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-white/5 text-xs text-zinc-300 hover:text-white transition-colors"
-                              >
-                                {ext.badge === 'NEW' ? 'Remove "NEW" Badge' : 'Add "NEW" Badge'}
-                              </button>
-
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  setOpenMenuId(null);
                                   // Toggle Featured status
-                                  const isExtFeatured = ext.featured === true || ext.feature === true;
-                                  if (!isExtFeatured) {
+                                  const isDlFeatured = dl.featured === true;
+                                  if (!isDlFeatured) {
                                     // Check total featured count
-                                    const currentFeatured = extensions.filter(e => e.featured === true || e.feature === true).length;
+                                    const currentFeatured = downloads.filter(d => d.featured === true).length;
                                     if (currentFeatured >= 3) {
-                                      alert('Validation Error: A maximum of 3 extensions can be featured, but you are trying to feature a 4th extension.');
+                                      alert('Validation Error: A maximum of 3 downloads can be featured, but you are trying to feature a 4th download.');
                                       return;
                                     }
                                   }
-                                  await handleUpdateExtensionField(ext, { featured: !isExtFeatured });
+                                  await handleUpdateDownloadField(dl, { featured: !isDlFeatured });
                                 }}
                                 className="w-full text-left px-4 py-2 hover:bg-white/5 text-xs text-zinc-300 hover:text-white transition-colors"
                               >
-                                {isExtFeatured ? 'Unfeature Extension' : 'Feature Extension'}
+                                {isDlFeatured ? 'Unfeature Download' : 'Feature Download'}
                               </button>
 
                               <hr className="border-white/5 my-1" />
@@ -1051,7 +1072,7 @@ export default function AdminPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setOpenMenuId(null);
-                                  handleEditClick(ext);
+                                  handleEditClick(dl);
                                 }}
                                 className="w-full text-left px-4 py-2 hover:bg-white/5 text-xs text-zinc-300 hover:text-white transition-colors"
                               >
@@ -1062,11 +1083,11 @@ export default function AdminPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setOpenMenuId(null);
-                                  handleDelete(ext.id);
+                                  handleDelete(dl.id);
                                 }}
                                 className="w-full text-left px-4 py-2 hover:bg-red-500/10 text-xs text-red-400 hover:text-red-300 transition-colors"
                               >
-                                Delete Extension
+                                Delete Download
                               </button>
                             </div>
                           )}
@@ -1075,9 +1096,9 @@ export default function AdminPage() {
                     );
                   })}
 
-                  {extensions.length === 0 && (
+                  {downloads.length === 0 && (
                     <div className="py-12 text-center text-zinc-500 text-xs">
-                      No extensions registered in database.
+                      No downloads registered in database.
                     </div>
                   )}
                 </div>

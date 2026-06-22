@@ -1,12 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
 
 export default function StatsPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   return (
     <main className="min-h-screen text-white relative overflow-hidden">
       {/* Dynamic Ambient Background Elements */}
@@ -16,7 +13,7 @@ export default function StatsPage() {
 
       {/* Content wrapper */}
       <div className="relative z-10">
-        <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+        <Navbar />
 
         <div className="pt-32 pb-24 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-16">
           
@@ -143,8 +140,6 @@ export default function StatsPage() {
 
         </div>
       </div>
-
-      <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </main>
   );
 }

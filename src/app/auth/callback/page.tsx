@@ -7,7 +7,8 @@ import {
   createUserWithEmailAndPassword, 
   updateProfile 
 } from 'firebase/auth';
-import { auth } from '@/utils/firebase';
+import { auth, db } from '@/utils/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 
@@ -50,6 +51,36 @@ function CallbackContent() {
         }
 
         const { email, password, username, avatar, id } = data;
+
+        // Check if we are linking Twitch to an existing user!
+        const connectTwitchUid = localStorage.getItem('connect_twitch_uid');
+        if (connectTwitchUid) {
+          const userRef = doc(db, 'users', connectTwitchUid);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const existingData = userDoc.data();
+            let platforms = existingData.platforms || [];
+            if (!platforms.includes('twitch')) {
+              platforms.push('twitch');
+            }
+            await setDoc(userRef, {
+              twitchId: id,
+              platforms: platforms
+            }, { merge: true });
+          }
+          
+          localStorage.removeItem('connect_twitch_uid');
+          setStatus('success');
+          
+          // Clear current session in localStorage so it reloads latest profile
+          localStorage.removeItem('primewaaag_session');
+          
+          // Redirect to premium page
+          setTimeout(() => {
+            router.replace('/premium');
+          }, 1500);
+          return;
+        }
 
         // 2. Sign in or Sign up with Firebase Auth (client side)
         let userCredential;

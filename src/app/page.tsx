@@ -1,29 +1,42 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
-import { Play, Sparkles, HelpCircle, ChevronDown, ArrowUpRight, Puzzle, Gamepad2, FolderCode, Newspaper } from 'lucide-react';
-import { useExtensions } from '@/hooks/useExtensions';
+import { 
+  Play, 
+  Sparkles, 
+  HelpCircle, 
+  ChevronDown, 
+  ArrowUpRight, 
+  Newspaper, 
+  Download as DownloadIcon, 
+  Heart, 
+  ChevronLeft, 
+  ChevronRight, 
+  MessageSquare,
+  ShieldCheck,
+  Zap,
+  Globe
+} from 'lucide-react';
+import { useDownloads } from '@/hooks/useDownloads';
 import { useNews } from '@/hooks/useNews';
-import { useVideos } from '@/hooks/useVideos';
+import Link from 'next/link';
+
+interface Supporter {
+  username: string;
+  avatar?: string;
+  role?: string;
+}
 
 export default function Home() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [checkingLive, setCheckingLive] = useState(true);
-  const { featuredExtensions, isLoading: extensionsLoading } = useExtensions();
+  const [supporters, setSupporters] = useState<Supporter[]>([]);
+  const [supportersLoading, setSupportersLoading] = useState(true);
+  const { downloads, isLoading: downloadsLoading } = useDownloads();
   const { news, isLoading: newsLoading } = useNews();
-  const { videos, isLoading: videosLoading } = useVideos();
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('openExtensions') === 'true') {
-      setIsModalOpen(true);
-      // Clean up URL parameter so it doesn't reopen on reload
-      window.history.replaceState(null, '', '/');
-    }
-  }, []);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function checkLiveStatus() {
@@ -42,8 +55,36 @@ export default function Home() {
     checkLiveStatus();
   }, []);
 
+  useEffect(() => {
+    async function fetchSupporters() {
+      try {
+        const res = await fetch('/.netlify/functions/get-supporters');
+        if (res.ok) {
+          const data = await res.json();
+          setSupporters(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch supporters:', err);
+      } finally {
+        setSupportersLoading(false);
+      }
+    }
+    fetchSupporters();
+  }, []);
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (carouselRef.current) {
+      const { scrollLeft, clientWidth } = carouselRef.current;
+      const cardWidth = 320; // approximate card width
+      const scrollTo = direction === 'left' 
+        ? scrollLeft - cardWidth * 1.5 
+        : scrollLeft + cardWidth * 1.5;
+      carouselRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <main className="min-h-screen text-white selection:bg-purple-500/30 relative overflow-hidden">
+    <main className="min-h-screen text-white selection:bg-purple-500/30 relative overflow-hidden pb-20">
       {/* Dynamic Ambient Background Elements */}
       <div className="glow-blob-1 z-0" />
       <div className="glow-blob-2 z-0" />
@@ -51,25 +92,166 @@ export default function Home() {
 
       {/* Page Content wrapper */}
       <div className="relative z-10">
-        {/* 1. Global Navigation Bar Component Hooked to Modal Toggle */}
-        <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+        <Navbar />
 
         <div className="pt-28 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-28">
           
-          {/* ================= HERO: TWITCH LIVE STREAM ================= */}
-          {!checkingLive && isLive && (
-            <section className="max-w-5xl mx-auto w-full aspect-video rounded-3xl overflow-hidden border border-white/10 bg-zinc-950/60 relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] group">
-              {/* Border glow effect */}
-              <div className="absolute inset-0 border border-purple-500/10 rounded-3xl pointer-events-none group-hover:border-purple-500/30 transition-colors duration-500" />
-              <iframe
-                src="https://player.twitch.tv/?channel=primewaaag&parent=localhost&autoplay=false"
-                className="w-full h-full"
-                allowFullScreen
-              />
-            </section>
-          )}
+          {/* ================= HERO SECTION (TOP THING WITH SOME INFOS) ================= */}
+          <section className="relative py-8 md:py-16 flex flex-col items-center justify-center text-center space-y-8 max-w-4xl mx-auto">
+            {/* Live Indicator */}
+            {!checkingLive && isLive && (
+              <a 
+                href="https://twitch.tv/primewaaag"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider animate-pulse hover:bg-red-500/20 transition-all cursor-pointer"
+              >
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Live on Twitch Now
+              </a>
+            )}
 
-          {/* ================= NEWS SECTION ================= */}
+            <div className="space-y-4">
+              <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-none uppercase bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
+                Elevate Your Live Stream
+              </h1>
+              <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+                Unlock a premium collection of Streamer.bot extensions, OBS overlays, widgets, and tools built specifically for Twitch and YouTube broadcasters to boost chat interactivity.
+              </p>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link 
+                href="/downloads"
+                className="px-8 py-3 rounded-2xl bg-white text-zinc-950 font-black text-xs uppercase tracking-wider hover:bg-zinc-200 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] cursor-pointer"
+              >
+                Explore Downloads
+              </Link>
+              <a
+                href="https://discord.com/invite/N5T4SXfE2N"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-8 py-3 rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-all font-black text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Join Discord
+              </a>
+            </div>
+
+            {/* Info Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full pt-10">
+              <div className="flex flex-col items-center p-6 rounded-3xl glass-panel border border-white/5 space-y-2">
+                <Zap className="text-purple-400 h-6 w-6" />
+                <span className="font-bold text-xs uppercase tracking-wider text-white">Streamer.bot Integration</span>
+                <span className="text-[11px] text-zinc-400">Easy-to-use plug-and-play actions</span>
+              </div>
+              <div className="flex flex-col items-center p-6 rounded-3xl glass-panel border border-white/5 space-y-2">
+                <Globe className="text-emerald-400 h-6 w-6" />
+                <span className="font-bold text-xs uppercase tracking-wider text-white">Multiplatform Ready</span>
+                <span className="text-[11px] text-zinc-400">Designed for Twitch and YouTube</span>
+              </div>
+              <div className="flex flex-col items-center p-6 rounded-3xl glass-panel border border-white/5 space-y-2">
+                <ShieldCheck className="text-cyan-400 h-6 w-6" />
+                <span className="font-bold text-xs uppercase tracking-wider text-white">Premium Quality</span>
+                <span className="text-[11px] text-zinc-400">Highly customized and well tested</span>
+              </div>
+            </div>
+          </section>
+
+          {/* ================= EXPLORE DOWNLOADS: CAROUSEL SECTION ================= */}
+          <section className="space-y-8 relative">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <DownloadIcon className="text-purple-500" size={24} />
+                <h2 className="text-2xl font-black tracking-tight">EXPLORE DOWNLOADS</h2>
+              </div>
+              
+              {/* Carousel Control Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => scrollCarousel('left')}
+                  className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
+                  aria-label="Scroll left"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  onClick={() => scrollCarousel('right')}
+                  className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all flex items-center justify-center text-zinc-300 hover:text-white cursor-pointer"
+                  aria-label="Scroll right"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scroll Container */}
+            <div 
+              ref={carouselRef}
+              className="flex overflow-x-auto gap-6 pb-6 pt-2 no-scrollbar snap-x snap-mandatory scroll-smooth"
+            >
+              {downloadsLoading ? (
+                [1, 2, 3, 4].map((n) => (
+                  <div key={n} className="flex-shrink-0 w-[300px] h-80 rounded-3xl border border-white/5 bg-zinc-900/10 animate-pulse" />
+                ))
+              ) : downloads.length === 0 ? (
+                <div className="w-full py-16 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
+                  <DownloadIcon size={32} className="mx-auto mb-3 text-zinc-600 stroke-[1.5]" />
+                  <span>No downloads available at the moment.</span>
+                </div>
+              ) : (
+                downloads.map((item) => (
+                  <Link 
+                    key={item.id} 
+                    href={`/downloads?category=${item.category}`}
+                    className="flex-shrink-0 w-[300px] snap-start group p-5 rounded-3xl glass-panel glass-panel-hover flex flex-col justify-between relative cursor-pointer overflow-hidden shadow-lg border border-white/5 hover:border-purple-500/20 transition-all duration-300"
+                  >
+                    {/* Image Header */}
+                    <div className="w-full rounded-2xl overflow-hidden border border-white/5 bg-zinc-950/40 aspect-video relative mb-4">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-700 bg-zinc-900/30">
+                          <DownloadIcon size={32} />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-grow flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-emerald-400 bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                            {item.price === '0' || item.price === '0.00' || item.price.toLowerCase() === 'free' ? 'FREE' : item.price}
+                          </span>
+                          <span className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">{item.category}</span>
+                        </div>
+                        
+                        <h3 className="font-black text-base text-white tracking-wide group-hover:text-purple-300 transition-colors mb-1.5 uppercase line-clamp-1">{item.title}</h3>
+                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{item.description || "Elevate live engagement layouts with intuitive interactive elements."}</p>
+                      </div>
+                      
+                      {/* Footer */}
+                      <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
+                        <div className="flex items-center gap-1.5">
+                          <img src="https://cdn.simpleicons.org/twitch/a970ff" alt="Twitch" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                          <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <span className="text-xs font-bold text-purple-400 group-hover:text-purple-300 flex items-center gap-0.5 transition-colors">
+                          Get Asset <ArrowUpRight size={12} />
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* ================= NEWS SECTION (LATEST 6 IN A 3-GRID ONE) ================= */}
           <section className="space-y-8">
             <div className="flex flex-col gap-2 border-b border-white/5 pb-6">
               <div className="flex items-center gap-3">
@@ -88,13 +270,13 @@ export default function Home() {
                 ))}
               </div>
             ) : news.length === 0 ? (
-              <div className="col-span-full py-16 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
+              <div className="py-16 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
                 <Newspaper size={32} className="mx-auto mb-3 text-zinc-600 stroke-[1.5]" />
                 <span>No news articles posted yet. Stay tuned for updates!</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {news.map((item) => {
+                {news.slice(0, 6).map((item) => {
                   const isYoutube = item.mediaUrl && (item.mediaUrl.includes('youtube.com') || item.mediaUrl.includes('youtu.be'));
                   let ytEmbedUrl = '';
                   if (isYoutube && item.mediaUrl) {
@@ -179,133 +361,96 @@ export default function Home() {
             )}
           </section>
 
-          {/* ================= EXTENSIONS SECTION ================= */}
+          {/* ================= SUPPORTERS SECTION (BIG CARD WITH PIC AND NAME) ================= */}
           <section className="space-y-8">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+            <div className="flex flex-col gap-2 border-b border-white/5 pb-6">
               <div className="flex items-center gap-3">
-                <Puzzle className="text-purple-500" size={24} />
-                <h2 className="text-2xl font-black tracking-tight">FEATURED EXTENSIONS</h2>
+                <div className="h-10 w-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                  <Heart size={20} className="fill-current" />
+                </div>
+                <h2 className="text-2xl font-black tracking-tight">SUPPORTERS</h2>
               </div>
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-1.5 px-4.5 py-2 text-xs font-bold rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all shadow-[0_0_15px_rgba(168,85,247,0.15)] cursor-pointer"
-              >
-                Browse All Extensions <ArrowUpRight size={14} />
-              </button>
+              <p className="text-sm text-zinc-400">Awesome people supporting the stream and website!</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {extensionsLoading ? (
-                [1, 2, 3].map((n) => (
-                  <div key={n} className="p-5 rounded-2xl border border-white/5 bg-zinc-900/10 animate-pulse h-44" />
-                ))
-              ) : featuredExtensions.length === 0 ? (
-                <div className="col-span-full py-16 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
-                  <Puzzle size={32} className="mx-auto mb-3 text-zinc-600 stroke-[1.5]" />
-                  <span>No featured extensions available at the moment.</span>
-                </div>
-              ) : (
-                featuredExtensions.map((item) => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => setIsModalOpen(true)} 
-                    className="group p-6 rounded-3xl glass-panel glass-panel-hover flex flex-col justify-between relative cursor-pointer overflow-hidden shadow-lg"
-                  >
-                    {/* Subtle top highlighting */}
-                    <div className="absolute top-0 left-0 right-0 h-[1px] bg-linear-to-r from-transparent via-purple-500/30 to-transparent" />
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-purple-500/10 to-indigo-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:text-white group-hover:from-purple-600/20 group-hover:to-indigo-500/20 transition-all shadow-inner">
-                          <Puzzle size={20} />
-                        </div>
-                        
-                        {item.badge === 'NEW' && (
-                          <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-emerald-400 bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                            NEW
-                          </span>
-                        )}
-                      </div>
-                      
-                      <h3 className="font-black text-xl text-white tracking-wide group-hover:text-purple-300 transition-colors mb-2">{item.name}</h3>
-                      <p className="text-sm text-zinc-400 leading-relaxed mb-6 line-clamp-3">{item.description || "Elevate live engagement layouts with intuitive interactive elements."}</p>
-                    </div>
-                    
-                    {/* Card Footer: Platforms & Action */}
-                    <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-auto">
-                      <div className="flex items-center gap-1.5">
-                        <img src="https://cdn.simpleicons.org/twitch/a970ff" alt="Twitch" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                        <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                        <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 transition-colors ml-1 font-semibold uppercase tracking-wider">Multiplatform</span>
-                      </div>
-                      <span className="text-xs font-bold text-purple-400 group-hover:text-purple-300 flex items-center gap-0.5 transition-colors">
-                        Learn More <ArrowUpRight size={12} />
+            {supportersLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <div key={n} className="h-44 bg-zinc-900/10 border border-white/5 rounded-3xl animate-pulse" />
+                ))}
+              </div>
+            ) : supporters.length === 0 ? (
+              <div className="py-12 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
+                <Heart size={32} className="mx-auto mb-3 text-zinc-600 stroke-[1.5]" />
+                <span>No supporters listed yet. Link your Twitch account or sub to join the list!</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                {supporters.map((supporter, idx) => {
+                  const avatarUrl = supporter.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(supporter.username)}&background=8b5cf6&color=fff`;
+                  
+                  let borderClass = 'border-white/5 hover:border-purple-500/30';
+                  let ringColor = 'border-purple-500/20 group-hover:border-purple-500/60';
+                  
+                  if (supporter.role === 'Admin') {
+                    borderClass = 'border-red-500/10 hover:border-red-500/40 hover:shadow-red-500/5';
+                    ringColor = 'border-red-500/20 group-hover:border-red-500/60';
+                  } else if (supporter.role === 'Twitch Subscriber') {
+                    borderClass = 'border-purple-500/10 hover:border-purple-500/40 hover:shadow-purple-500/5';
+                    ringColor = 'border-purple-500/20 group-hover:border-purple-500/60';
+                  } else if (supporter.role === 'Premium') {
+                    borderClass = 'border-amber-500/10 hover:border-amber-500/40 hover:shadow-amber-500/5';
+                    ringColor = 'border-amber-500/20 group-hover:border-amber-500/60';
+                  }
+
+                  return (
+                    <div 
+                      key={idx}
+                      className={`group flex flex-col items-center justify-center p-6 rounded-3xl glass-panel border ${borderClass} transition-all duration-300 hover:scale-[1.03] text-center`}
+                    >
+                      <img 
+                        src={avatarUrl} 
+                        alt={supporter.username} 
+                        className={`h-20 w-20 rounded-full border-2 ${ringColor} object-cover shadow-lg bg-zinc-950 transition-all duration-300 mb-4`}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(supporter.username)}&background=8b5cf6&color=fff`;
+                        }}
+                      />
+                      <span className="font-bold text-sm text-white truncate uppercase tracking-wider group-hover:text-purple-300 transition-colors max-w-full">
+                        {supporter.username}
                       </span>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
-          {/* ================= RECENT VIDEOS HUB ================= */}
-          <section className="space-y-8">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <div className="flex items-center gap-3">
-                <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" className="h-6 w-6" />
-                <h2 className="text-2xl font-black tracking-tight">RECENT VIDEOS</h2>
-              </div>
-              <a 
-                href="https://youtube.com/@primewaaag" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-xs font-bold text-zinc-400 hover:text-white flex items-center gap-1.5 transition-colors"
-              >
-                Go To Channel <ArrowUpRight size={14} />
-              </a>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {videosLoading ? (
-                [1, 2, 3].map((n) => (
-                  <div key={n} className="aspect-video w-full rounded-2xl bg-zinc-950 animate-pulse border border-white/5" />
-                ))
-              ) : videos.length === 0 ? (
-                <div className="col-span-full py-16 text-center text-zinc-500 text-sm bg-zinc-900/10 border border-white/5 rounded-3xl backdrop-blur-md">
-                  <Play size={32} className="mx-auto mb-3 text-zinc-600 stroke-[1.5]" />
-                  <span>No recent videos configured.</span>
+          {/* ================= NEED HELP / DISCORD SECTION ================= */}
+          <section className="max-w-4xl mx-auto">
+            <div className="relative p-8 md:p-12 rounded-3xl glass-panel border border-white/5 overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+              {/* Subtle internal glowing blob */}
+              <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+              
+              <div className="space-y-4 max-w-xl text-center md:text-left">
+                <div className="flex items-center gap-2 justify-center md:justify-start">
+                  <MessageSquare className="text-purple-400 h-5 w-5" />
+                  <h3 className="font-black text-lg tracking-tight uppercase text-white">Need help or just want to chat?</h3>
                 </div>
-              ) : (
-                videos.map((video) => (
-                  <a 
-                    key={video.id} 
-                    href={video.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="group cursor-pointer space-y-4 block"
-                  >
-                    <div className="aspect-video w-full rounded-2xl bg-zinc-950 overflow-hidden relative border border-white/5 transition-all duration-300 group-hover:border-red-500/35 group-hover:shadow-[0_10px_35px_rgba(239,68,68,0.12)]">
-                      <img 
-                        src={video.thumbnail} 
-                        alt={video.title} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                      />
-                      
-                      {/* Play Overlay (Exclusively shown on hover via opacity transitions) */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="h-12 w-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                          <Play size={20} className="fill-current ml-0.5" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <h3 className="font-bold text-sm text-zinc-200 line-clamp-2 group-hover:text-white transition-colors leading-snug">
-                        {video.title}
-                      </h3>
-                    </div>
-                  </a>
-                ))
-              )}
+                <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                  Need help? Found a bug? Want to commission your unique idea? Or just have a feature request for an existing extension? Join the Discord and hit me up :)
+                </p>
+              </div>
+
+              <a
+                href="https://discord.com/invite/N5T4SXfE2N"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[#5865F2] hover:bg-[#4752c4] text-white font-black text-xs uppercase tracking-wider transition-all shadow-[0_10px_20px_rgba(88,101,242,0.2)] hover:shadow-[0_10px_25px_rgba(88,101,242,0.35)] cursor-pointer whitespace-nowrap"
+              >
+                <img src="https://cdn.simpleicons.org/discord/ffffff" alt="Discord" className="h-4 w-4" />
+                Join Discord
+              </a>
             </div>
           </section>
 
@@ -326,9 +471,6 @@ export default function Home() {
           </section>
 
         </div>
-
-        {/* 2. Floating Popup Extensions Modal Component Controlled Globally */}
-        <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       </div>
     </main>
   );

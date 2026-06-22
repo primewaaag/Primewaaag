@@ -54,25 +54,25 @@ export const handler: Handler = async (event) => {
   try {
     const body = event.body ? JSON.parse(event.body) : {};
 
-    // 1. ADD NEW EXTENSION (POST)
+    // 1. ADD NEW DOWNLOAD (POST)
     if (event.httpMethod === 'POST') {
-      const { id, name, badge, description, featured } = body;
-      if (!id || !name) {
+      const { id, title, price, imageUrl, category, description, featured } = body;
+      if (!id || !title || !price || !imageUrl || !category) {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'ID and Name are required.' }),
+          body: JSON.stringify({ error: 'ID, Title, Price, Image URL, and Category are required.' }),
         };
       }
 
       // Feature validation
       if (featured === true) {
-        const extensionsCol = collection(db, 'extensions');
-        const snapshot = await getDocs(query(extensionsCol));
+        const downloadsCol = collection(db, 'downloads');
+        const snapshot = await getDocs(query(downloadsCol));
         let currentFeatured = 0;
         snapshot.forEach(doc => {
           const data = doc.data();
-          if (data.featured === true || data.feature === true) {
+          if (data.featured === true) {
             currentFeatured++;
           }
         });
@@ -81,15 +81,17 @@ export const handler: Handler = async (event) => {
           return {
             statusCode: 400,
             headers,
-            body: JSON.stringify({ error: `Validation Error: A maximum of 3 extensions can be featured, but you are trying to feature a 4th extension.` }),
+            body: JSON.stringify({ error: `Validation Error: A maximum of 3 downloads can be featured, but you are trying to feature a 4th download.` }),
           };
         }
       }
 
-      const docRef = doc(db, 'extensions', id);
+      const docRef = doc(db, 'downloads', id);
       await setDoc(docRef, {
-        name,
-        badge: badge || null,
+        title,
+        price,
+        imageUrl,
+        category,
         description: description || '',
         featured: featured || false,
       });
@@ -97,29 +99,29 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 201,
         headers,
-        body: JSON.stringify({ message: 'Extension added successfully.', id }),
+        body: JSON.stringify({ message: 'Download added successfully.', id }),
       };
     }
 
-    // 2. UPDATE EXTENSION (PUT)
+    // 2. UPDATE DOWNLOAD (PUT)
     if (event.httpMethod === 'PUT') {
-      const { id, name, badge, description, featured } = body;
-      if (!id || !name) {
+      const { id, title, price, imageUrl, category, description, featured } = body;
+      if (!id || !title || !price || !imageUrl || !category) {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'ID and Name are required.' }),
+          body: JSON.stringify({ error: 'ID, Title, Price, Image URL, and Category are required.' }),
         };
       }
 
       // Feature validation
       if (featured === true) {
-        const extensionsCol = collection(db, 'extensions');
-        const snapshot = await getDocs(query(extensionsCol));
+        const downloadsCol = collection(db, 'downloads');
+        const snapshot = await getDocs(query(downloadsCol));
         let currentFeatured = 0;
         snapshot.forEach(doc => {
           const data = doc.data();
-          if (doc.id !== id && (data.featured === true || data.feature === true)) {
+          if (doc.id !== id && data.featured === true) {
             currentFeatured++;
           }
         });
@@ -128,15 +130,17 @@ export const handler: Handler = async (event) => {
           return {
             statusCode: 400,
             headers,
-            body: JSON.stringify({ error: `Validation Error: A maximum of 3 extensions can be featured, but you are trying to feature a 4th extension.` }),
+            body: JSON.stringify({ error: `Validation Error: A maximum of 3 downloads can be featured, but you are trying to feature a 4th download.` }),
           };
         }
       }
 
-      const docRef = doc(db, 'extensions', id);
+      const docRef = doc(db, 'downloads', id);
       await updateDoc(docRef, {
-        name,
-        badge: badge || null,
+        title,
+        price,
+        imageUrl,
+        category,
         description: description || '',
         featured: featured || false,
       });
@@ -144,11 +148,11 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ message: 'Extension updated successfully.', id }),
+        body: JSON.stringify({ message: 'Download updated successfully.', id }),
       };
     }
 
-    // 3. DELETE EXTENSION (DELETE)
+    // 3. DELETE DOWNLOAD (DELETE)
     if (event.httpMethod === 'DELETE') {
       const { id } = body;
       if (!id) {
@@ -159,13 +163,13 @@ export const handler: Handler = async (event) => {
         };
       }
 
-      const docRef = doc(db, 'extensions', id);
+      const docRef = doc(db, 'downloads', id);
       await deleteDoc(docRef);
 
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ message: 'Extension deleted successfully.', id }),
+        body: JSON.stringify({ message: 'Download deleted successfully.', id }),
       };
     }
 
@@ -176,7 +180,7 @@ export const handler: Handler = async (event) => {
     };
 
   } catch (error: any) {
-    console.error('manage-extensions error:', error);
+    console.error('manage-downloads error:', error);
     let msg = error.message || 'Internal Server Error';
     if (msg.includes('permission') || msg.includes('Permission') || msg.includes('insufficient')) {
       msg = 'Firebase Firestore Permission Error: Please update your database Security Rules in the Firebase Console (Rules tab) to allow read/write access (e.g. set "allow read, write: if true;") so the serverless API can mutate collections.';

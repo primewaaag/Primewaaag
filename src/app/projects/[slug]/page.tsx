@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -103,7 +102,6 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const slug = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [versionPopupOpen, setVersionPopupOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
@@ -147,7 +145,7 @@ export default function ProjectDetailPage() {
       )}
 
       <div className="relative z-10">
-        <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+        <Navbar />
 
         <div className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-8">
 
@@ -328,8 +326,6 @@ export default function ProjectDetailPage() {
           )}
         </div>
       </div>
-
-      <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </main>
   );
 }

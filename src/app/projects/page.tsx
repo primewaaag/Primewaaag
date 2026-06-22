@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
 import {
   FolderCode, Loader2, Code2, Star, ExternalLink, Globe, Code, Download, Play, ArrowUpRight
 } from 'lucide-react';
@@ -157,7 +156,6 @@ function ProjectCard({ proj }: { proj: ProjectItem }) {
 }
 
 export default function ProjectsPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const { projects, isLoading, error } = useProjects();
 
   return (
@@ -167,7 +165,7 @@ export default function ProjectsPage() {
       <div className="glow-blob-3 z-0" />
 
       <div className="relative z-10">
-        <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+        <Navbar />
 
         <div className="pt-32 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
           {/* Header */}
@@ -214,8 +212,6 @@ export default function ProjectsPage() {
           )}
         </div>
       </div>
-
-      <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </main>
   );
 }

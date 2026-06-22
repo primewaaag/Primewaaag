@@ -3,14 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2 } from 'lucide-react';
+import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-interface NavbarProps {
-  onOpenExtensions?: () => void;
-}
-
-export default function Navbar({ onOpenExtensions }: NavbarProps) {
+export default function Navbar() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [renderedMenu, setRenderedMenu] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -19,15 +15,6 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
   const { user, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-
-  const handleExtensionsClick = () => {
-    if (onOpenExtensions) {
-      onOpenExtensions();
-    } else {
-      router.push('/?openExtensions=true');
-    }
-    setIsOpen(false);
-  };
 
   const submenuRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -181,11 +168,16 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
         <div className="nav-capsule-menu">
           <ul>
             <li
-              className="text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5"
-              onClick={handleExtensionsClick}
+              className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-opacity ${
+                activeMenu === 'downloads' ? 'opacity-100 active' : 'opacity-60 hover:opacity-100'
+              }`}
+              onMouseEnter={(e) => handleMouseEnter('downloads', e)}
+              onMouseLeave={handleMouseLeave}
             >
-              <Puzzle size={13} className="text-purple-400" />
-              Extensions
+              <Link href="/downloads" className="flex items-center gap-1.5" onClick={() => setActiveMenu(null)}>
+                <Puzzle size={13} className="text-purple-400" />
+                Downloads
+              </Link>
             </li>
             <li>
               <Link
@@ -203,6 +195,15 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
               >
                 <BarChart2 size={13} className="text-cyan-400" />
                 Stats
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/premium"
+                className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 ${pathname === '/premium' ? 'active' : ''}`}
+              >
+                <Sparkles size={13} className="text-amber-400" />
+                Premium
               </Link>
             </li>
           </ul>
@@ -279,7 +280,9 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
       {renderedMenu && (
         <div
           ref={submenuRef}
-          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''}`}
+          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''} ${
+            renderedMenu === 'socials' || renderedMenu === 'downloads' ? 'light-dropdown' : ''
+          }`}
           style={{
             translate: `${submenuX}px 0px`
           }}
@@ -287,29 +290,64 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
           onMouseLeave={handleSubmenuMouseLeave}
         >
 
+          {/* Downloads Submenu */}
+          <div className={`submenu-downloads ${renderedMenu === 'downloads' ? 'visible' : ''} w-[180px]`}>
+            <ul className="flex flex-col gap-1">
+              <li>
+                <Link
+                  href="/downloads?category=free"
+                  onClick={() => setActiveMenu(null)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  Free Stuff
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/downloads?category=premium"
+                  onClick={() => setActiveMenu(null)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  Premium
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/downloads?category=early-access"
+                  onClick={() => setActiveMenu(null)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+                  Early Access
+                </Link>
+              </li>
+            </ul>
+          </div>
+
           {/* Socials Submenu */}
-          <div className={`submenu-socials ${renderedMenu === 'socials' ? 'visible' : ''} w-[420px]`}>
-            <h4 className="text-[10px] font-bold text-zinc-500 tracking-wider uppercase mb-3 px-1">Connect</h4>
-            <div className="grid grid-cols-2 gap-2">
+          <div className={`submenu-socials ${renderedMenu === 'socials' ? 'visible' : ''} w-[180px]`}>
+            <div className="flex flex-col gap-1">
               {[
-                { name: 'Discord', url: 'https://discord.com/invite/N5T4SXfE2N', icon: 'https://cdn.simpleicons.org/discord/5865F2' },
-                { name: 'Twitch', url: 'https://twitch.tv/primewaaag', icon: 'https://cdn.simpleicons.org/twitch/a970ff' },
-                { name: 'YouTube', url: 'https://youtube.com/@primewaaag', icon: 'https://cdn.simpleicons.org/youtube/ff0000' },
-                { name: 'TikTok', url: 'https://tiktok.com/@primewaaag', icon: 'https://cdn.simpleicons.org/tiktok/ffffff' },
-                { name: 'Steam', url: 'https://steamcommunity.com/id/primewaaag/', icon: 'https://cdn.simpleicons.org/steam/ffffff' },
-                { name: 'GitHub', url: 'https://github.com/primewaaag', icon: 'https://cdn.simpleicons.org/github/ffffff' },
-                { name: 'Kick', url: 'https://kick.com/primewaaag', icon: 'https://cdn.simpleicons.org/kick/00E701' },
-                { name: 'BuyMeACoffee', url: 'https://buymeacoffee.com/primewaaag', icon: 'https://cdn.simpleicons.org/buymeacoffee/FFDD00' },
+                { name: 'Discord', url: 'https://discord.com/invite/N5T4SXfE2N', icon: 'https://cdn.simpleicons.org/discord/18181b' },
+                { name: 'Twitch', url: 'https://twitch.tv/primewaaag', icon: 'https://cdn.simpleicons.org/twitch/18181b' },
+                { name: 'YouTube', url: 'https://youtube.com/@primewaaag', icon: 'https://cdn.simpleicons.org/youtube/18181b' },
+                { name: 'TikTok', url: 'https://tiktok.com/@primewaaag', icon: 'https://cdn.simpleicons.org/tiktok/18181b' },
+                { name: 'Steam', url: 'https://steamcommunity.com/id/primewaaag/', icon: 'https://cdn.simpleicons.org/steam/18181b' },
+                { name: 'GitHub', url: 'https://github.com/primewaaag', icon: 'https://cdn.simpleicons.org/github/18181b' },
+                { name: 'Kick', url: 'https://kick.com/primewaaag', icon: 'https://cdn.simpleicons.org/kick/18181b' },
+                { name: 'BuyMeACoffee', url: 'https://buymeacoffee.com/primewaaag', icon: 'https://cdn.simpleicons.org/buymeacoffee/18181b' },
               ].map((soc) => (
                 <a
                   key={soc.name}
                   href={soc.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.06] border border-transparent hover:border-white/10 transition-all cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 transition-all cursor-pointer group"
                 >
                   <img src={soc.icon} alt={soc.name} className="h-4.5 w-4.5 object-contain" />
-                  <span className="text-xs font-semibold text-zinc-300 hover:text-white transition-colors">{soc.name}</span>
+                  <span className="text-sm font-bold text-zinc-800 hover:text-black transition-colors">{soc.name}</span>
                 </a>
               ))}
             </div>
@@ -391,15 +429,40 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
         <div className="md:hidden fixed top-[98px] left-[16px] right-[16px] rounded-[24px] border border-white/10 bg-[#0d1624]/90 p-5 shadow-2xl backdrop-blur-xl animate-fadeIn z-45 max-h-[calc(100vh-130px)] overflow-y-auto">
           {/* Navigation/Explore */}
           <div className="space-y-3">
-            <h4 className="text-[10px] font-bold text-zinc-500 tracking-wider uppercase px-2">Navigation</h4>
+            <h4 className="text-[10px] font-bold text-zinc-500 tracking-wider uppercase px-2">Downloads</h4>
             <div className="flex flex-col gap-2">
-              <button
-                onClick={handleExtensionsClick}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white w-full text-left"
+              <Link
+                href="/downloads"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
               >
                 <Puzzle size={16} className="text-purple-400" />
-                Extensions
-              </button>
+                All Downloads
+              </Link>
+              <Link
+                href="/downloads?category=free"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                Free Stuff
+              </Link>
+              <Link
+                href="/downloads?category=premium"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                Premium
+              </Link>
+              <Link
+                href="/downloads?category=early-access"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-purple-400" />
+                Early Access
+              </Link>
               <Link
                 href="/projects"
                 onClick={() => setIsOpen(false)}
@@ -415,6 +478,14 @@ export default function Navbar({ onOpenExtensions }: NavbarProps) {
               >
                 <BarChart2 size={16} className="text-cyan-400" />
                 Stats
+              </Link>
+              <Link
+                href="/premium"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <Sparkles size={16} className="text-amber-400" />
+                Premium
               </Link>
               {isAdmin && (
                 <Link

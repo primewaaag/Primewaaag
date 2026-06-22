@@ -28,8 +28,8 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const extensionsCol = collection(db, 'extensions');
-    const snapshot = await getDocs(query(extensionsCol));
+    const downloadsCol = collection(db, 'downloads');
+    const snapshot = await getDocs(query(downloadsCol));
     
     let list: any[] = [];
     snapshot.forEach(doc => {
@@ -49,7 +49,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify(list),
     };
   } catch (error: any) {
-    console.error('get-extensions error:', error);
+    console.error('get-downloads error:', error);
     let msg = error.message || 'Internal Server Error';
     if (msg.includes('permission') || msg.includes('Permission') || msg.includes('insufficient')) {
       msg = 'Firebase Firestore Permission Error: Please update your database Security Rules in the Firebase Console (Rules tab) to allow read/write access (e.g. set "allow read, write: if true;") so the serverless API can query collections.';

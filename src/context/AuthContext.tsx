@@ -26,6 +26,7 @@ export interface User {
   platforms?: string[];
   twitchId?: string | null;
   discordId?: string | null;
+  isSubscriber?: boolean;
 }
 
 interface AuthContextType {

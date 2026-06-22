@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
-import ExtensionsModal from '@/components/ExtensionsModal';
 
 function LoginContent() {
   const {
@@ -112,8 +111,6 @@ function LoginContent() {
 }
 
 export default function LoginPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   return (
     <main className="min-h-screen text-white relative overflow-hidden flex flex-col items-center justify-center p-4">
       {/* Ambient background glows */}
@@ -121,7 +118,7 @@ export default function LoginPage() {
       <div className="glow-blob-2 z-0" />
       <div className="glow-blob-3 z-0" />
 
-      <Navbar onOpenExtensions={() => setIsModalOpen(true)} />
+      <Navbar />
 
       <div className="relative z-10 w-full flex justify-center mt-20">
         <Suspense fallback={
@@ -133,8 +130,6 @@ export default function LoginPage() {
           <LoginContent />
         </Suspense>
       </div>
-
-      <ExtensionsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </main>
   );
 }
