@@ -168,12 +168,11 @@ export default function Navbar() {
         <div className="nav-capsule-menu">
           <ul>
             <li
-              className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-opacity ${activeMenu === 'downloads' ? 'opacity-100 active' : 'opacity-60 hover:opacity-100'
-                }`}
+              className="cursor-pointer"
               onMouseEnter={(e) => handleMouseEnter('downloads', e)}
               onMouseLeave={handleMouseLeave}
             >
-              <Link href="/downloads" className="flex items-center gap-1.5" onClick={() => setActiveMenu(null)}>
+              <Link href="/downloads" className={`category-link ${pathname === '/downloads' || activeMenu === 'downloads' ? 'active' : ''}`} onClick={() => setActiveMenu(null)}>
                 <Puzzle size={13} className="text-purple-400" />
                 Downloads
               </Link>
@@ -181,7 +180,7 @@ export default function Navbar() {
             <li>
               <Link
                 href="/projects"
-                className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 ${pathname === '/projects' ? 'active' : ''}`}
+                className={`category-link ${pathname === '/projects' ? 'active' : ''}`}
               >
                 <FolderCode size={13} className="text-emerald-400" />
                 Projects
@@ -190,7 +189,7 @@ export default function Navbar() {
             <li>
               <Link
                 href="/stats"
-                className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 ${pathname === '/stats' ? 'active' : ''}`}
+                className={`category-link ${pathname === '/stats' ? 'active' : ''}`}
               >
                 <BarChart2 size={13} className="text-cyan-400" />
                 Stats
@@ -199,7 +198,7 @@ export default function Navbar() {
             <li>
               <Link
                 href="/premium"
-                className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 ${pathname === '/premium' ? 'active' : ''}`}
+                className={`category-link ${pathname === '/premium' ? 'active' : ''}`}
               >
                 <Sparkles size={13} className="text-amber-400" />
                 Premium
@@ -212,8 +211,7 @@ export default function Navbar() {
         <div className="ml-auto flex items-center gap-6">
           {/* SOCIALS TRIGGER WITH ICON (LEFT OF LOGIN) */}
           <div
-            className={`text-sm py-2 px-1 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer opacity-60 hover:opacity-100 transition-opacity ${activeMenu === 'socials' ? 'opacity-100 active' : ''
-              }`}
+            className={`category-link cursor-pointer ${activeMenu === 'socials' ? 'active' : ''}`}
             onMouseEnter={(e) => handleMouseEnter('socials', e)}
             onMouseLeave={handleMouseLeave}
             onClick={(e) => handleTriggerClick('socials', e)}
@@ -221,7 +219,6 @@ export default function Navbar() {
             <Share2 size={13} className="text-pink-400" />
             Socials
           </div>
-
           {user ? (
             <div
               className={`flex items-center gap-2 py-1.5 px-3 rounded-full hover:bg-white/[0.04] cursor-pointer transition-all border border-transparent hover:border-white/10 ${activeMenu === 'account' ? 'bg-white/[0.04] border-white/10' : ''
@@ -277,8 +274,7 @@ export default function Navbar() {
       {renderedMenu && (
         <div
           ref={submenuRef}
-          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''} ${renderedMenu === 'socials' || renderedMenu === 'downloads' ? 'light-dropdown' : ''
-            }`}
+          className={`nav-capsule-submenu ${activeMenu ? 'open' : ''}`}
           style={{
             translate: `${submenuX}px 0px`
           }}
@@ -293,7 +289,7 @@ export default function Navbar() {
                 <Link
                   href="/downloads?category=free"
                   onClick={() => setActiveMenu(null)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] text-sm font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Gift size={16} className="text-emerald-500" />
                   Free Stuff
@@ -303,7 +299,7 @@ export default function Navbar() {
                 <Link
                   href="/downloads?category=premium"
                   onClick={() => setActiveMenu(null)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] text-sm font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Gem size={16} className="text-amber-500" />
                   Premium
@@ -313,7 +309,7 @@ export default function Navbar() {
                 <Link
                   href="/downloads?category=early-access"
                   onClick={() => setActiveMenu(null)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 text-sm font-bold text-zinc-800 hover:text-black transition-colors cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] text-sm font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Clock size={16} className="text-purple-500" />
                   Early Access
@@ -326,29 +322,28 @@ export default function Navbar() {
           <div className={`submenu-socials ${renderedMenu === 'socials' ? 'visible' : ''} w-[180px]`}>
             <div className="flex flex-col gap-1">
               {[
-                { name: 'Discord', url: 'https://discord.com/invite/N5T4SXfE2N', icon: 'https://cdn.simpleicons.org/discord/18181b' },
-                { name: 'Twitch', url: 'https://twitch.tv/primewaaag', icon: 'https://cdn.simpleicons.org/twitch/18181b' },
-                { name: 'YouTube', url: 'https://youtube.com/@primewaaag', icon: 'https://cdn.simpleicons.org/youtube/18181b' },
-                { name: 'TikTok', url: 'https://tiktok.com/@primewaaag', icon: 'https://cdn.simpleicons.org/tiktok/18181b' },
-                { name: 'Steam', url: 'https://steamcommunity.com/id/primewaaag/', icon: 'https://cdn.simpleicons.org/steam/18181b' },
-                { name: 'GitHub', url: 'https://github.com/primewaaag', icon: 'https://cdn.simpleicons.org/github/18181b' },
-                { name: 'Kick', url: 'https://kick.com/primewaaag', icon: 'https://cdn.simpleicons.org/kick/18181b' },
-                { name: 'BuyMeACoffee', url: 'https://buymeacoffee.com/primewaaag', icon: 'https://cdn.simpleicons.org/buymeacoffee/18181b' },
+                { name: 'Discord', url: 'https://discord.com/invite/N5T4SXfE2N', icon: 'https://cdn.simpleicons.org/discord/5865F2' },
+                { name: 'Twitch', url: 'https://twitch.tv/primewaaag', icon: 'https://cdn.simpleicons.org/twitch/a970ff' },
+                { name: 'YouTube', url: 'https://youtube.com/@primewaaag', icon: 'https://cdn.simpleicons.org/youtube/ff0000' },
+                { name: 'TikTok', url: 'https://tiktok.com/@primewaaag', icon: 'https://cdn.simpleicons.org/tiktok/ffffff' },
+                { name: 'Steam', url: 'https://steamcommunity.com/id/primewaaag/', icon: 'https://cdn.simpleicons.org/steam/ffffff' },
+                { name: 'GitHub', url: 'https://github.com/primewaaag', icon: 'https://cdn.simpleicons.org/github/ffffff' },
+                { name: 'Kick', url: 'https://kick.com/primewaaag', icon: 'https://cdn.simpleicons.org/kick/00E701' },
+                { name: 'BuyMeACoffee', url: 'https://buymeacoffee.com/primewaaag', icon: 'https://cdn.simpleicons.org/buymeacoffee/FFDD00' },
               ].map((soc) => (
                 <a
                   key={soc.name}
                   href={soc.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 transition-all cursor-pointer group"
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.06] transition-all cursor-pointer group"
                 >
                   <img src={soc.icon} alt={soc.name} className="h-4.5 w-4.5 object-contain" />
-                  <span className="text-sm font-bold text-zinc-800 hover:text-black transition-colors">{soc.name}</span>
+                  <span className="text-sm font-bold text-zinc-300 group-hover:text-white transition-colors">{soc.name}</span>
                 </a>
               ))}
             </div>
           </div>
-
           {/* Account Submenu */}
           <div className={`submenu-account ${renderedMenu === 'account' ? 'visible' : ''} w-[280px]`}>
             {user ? (
