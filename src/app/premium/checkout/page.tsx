@@ -35,11 +35,13 @@ function CheckoutContent() {
 
   // Upgrade & Previous Payment state
   const [previousPaid, setPreviousPaid] = useState<number>(0);
+  const [previousTier, setPreviousTier] = useState<number>(0);
   const [activeSubId, setActiveSubId] = useState<string | null>(null);
   const [loadingSub, setLoadingSub] = useState<boolean>(true);
 
   // PayPal integration state
   const [paypalLoaded, setPaypalLoaded] = useState(false);
+  const [showOtherPaymentMethods, setShowOtherPaymentMethods] = useState(false);
 
   // Pre-fill user information if logged in
   useEffect(() => {
@@ -58,13 +60,13 @@ function CheckoutContent() {
       try {
         const q = query(
           collection(db, 'premium'),
-          where('userId', '==', user.userId),
-          where('status', '==', 'active')
+          where('userId', '==', user.userId)
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
           const subData = snap.docs[0].data();
           setPreviousPaid(subData.pricePaid || 0);
+          setPreviousTier(subData.tier || 0);
           setActiveSubId(snap.docs[0].id);
         }
       } catch (err) {
@@ -191,24 +193,30 @@ function CheckoutContent() {
   const handleCheckoutSuccess = async (paypalOrderDetails: any) => {
     if (!user) return;
     try {
-      // 1. Deactivate old active premium memberships by updating status
-      if (activeSubId) {
-        await setDoc(doc(db, 'premium', activeSubId), {
-          status: 'upgraded',
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      }
+      const premiumCol = collection(db, 'premium');
+      const q = query(premiumCol, where('userId', '==', user.userId));
+      const snap = await getDocs(q);
 
-      // 2. Create new active premium document
-      const subId = doc(collection(db, 'premium')).id;
-      await setDoc(doc(db, 'premium', subId), {
-        id: subId,
-        userId: user.userId,
-        tier: tier,
-        status: 'active',
-        pricePaid: basePriceVal, // Total value of this tier
-        createdAt: new Date().toISOString()
-      });
+      let subId;
+      if (!snap.empty) {
+        // Upgrade existing document: only update tier and pricePaid
+        const existingDoc = snap.docs[0];
+        subId = existingDoc.id;
+        await setDoc(doc(db, 'premium', subId), {
+          tier: tier,
+          pricePaid: basePriceVal // Total value of this tier
+        }, { merge: true });
+      } else {
+        // Create new premium document (no status field)
+        subId = doc(collection(db, 'premium')).id;
+        await setDoc(doc(db, 'premium', subId), {
+          id: subId,
+          userId: user.userId,
+          tier: tier,
+          pricePaid: basePriceVal, // Total value of this tier
+          createdAt: new Date().toISOString()
+        });
+      }
 
       // 3. Create order document in orders collection
       const orderId = doc(collection(db, 'orders')).id;
@@ -247,8 +255,7 @@ function CheckoutContent() {
         }
       }
 
-      alert(`Checkout completed successfully! Welcome to Tier ${tier} Membership.`);
-      router.push('/premium');
+      router.push(`/premium?success=true&tier=${tier}&oldTier=${previousTier}`);
     } catch (err: any) {
       console.error('Checkout recording error:', err);
       setErrorMsg('Payment succeeded, but failed to register your membership in the database. Please contact support.');
@@ -590,6 +597,33 @@ function CheckoutContent() {
                   >
                     Bypass PayPal & Complete Checkout (Developer Mode)
                   </button>
+
+                  {/* Other Payment Methods */}
+                  <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 hover:border-zinc-700/50 transition-all mt-4">
+                    <button 
+                      type="button"
+                      onClick={() => setShowOtherPaymentMethods(!showOtherPaymentMethods)}
+                      className="w-full flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-white transition-colors"
+                    >
+                      <span>Other Payment Methods</span>
+                      <ChevronDown size={14} className={`transform transition-transform duration-200 ${showOtherPaymentMethods ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showOtherPaymentMethods && (
+                      <div className="mt-3 text-xs text-zinc-400 space-y-2.5 leading-relaxed border-t border-zinc-900 pt-3">
+                        <p>If you prefer to pay via credit card, bank transfer, or other methods, please reach out to me directly:</p>
+                        <div className="flex flex-col gap-2 font-semibold text-zinc-300">
+                          <div className="flex items-center gap-2">
+                            <span className="text-purple-400">👾 Discord:</span>
+                            <span>@primewaaag</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-purple-400">✉️ Email:</span>
+                            <a href="mailto:marc.aeschbach@icloud.com" className="hover:text-purple-300 underline">marc.aeschbach@icloud.com</a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

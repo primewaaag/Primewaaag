@@ -14,13 +14,16 @@ import {
   CheckCircle,
   HelpCircle,
   Sparkles,
-  Info
+  Info,
+  Clock,
+  Plus,
+  Check
 } from 'lucide-react';
 import { db } from '@/utils/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function AccountsPage() {
-  const { user, isLoading, updateUserFields, setAuthModalOpen, linkGoogleAccount, loginOAuthPlatform } = useAuth();
+  const { user, isLoading, updateUserFields, setAuthModalOpen, linkGoogleAccount, loginOAuthPlatform, activeTier, loadingTier, premiumCreatedAt } = useAuth();
   const router = useRouter();
 
   const [selectedSource, setSelectedSource] = useState<'google' | 'twitch' | 'discord'>('google');
@@ -30,10 +33,8 @@ export default function AccountsPage() {
 
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loadingPurchases, setLoadingPurchases] = useState(true);
-  const [activeTier, setActiveTier] = useState<number>(0);
-  const [loadingTier, setLoadingTier] = useState(true);
 
-  // Fetch user's orders and active subscription from the database
+  // Fetch user's orders from the database
   useEffect(() => {
     const fetchData = async () => {
       if (!user || !user.userId) return;
@@ -48,25 +49,6 @@ export default function AccountsPage() {
         console.error('Error fetching purchases:', err);
       } finally {
         setLoadingPurchases(false);
-      }
-
-      try {
-        const subQ = query(
-          collection(db, 'premium'),
-          where('userId', '==', user.userId),
-          where('status', '==', 'active')
-        );
-        const subSnap = await getDocs(subQ);
-        if (!subSnap.empty) {
-          const subData = subSnap.docs[0].data();
-          setActiveTier(subData.tier || 0);
-        } else {
-          setActiveTier(0);
-        }
-      } catch (err) {
-        console.error('Error fetching active sub:', err);
-      } finally {
-        setLoadingTier(false);
       }
     };
     fetchData();
@@ -171,6 +153,30 @@ export default function AccountsPage() {
     } catch (_) { }
   }
 
+  let premiumSinceStr = 'N/A';
+  if (premiumCreatedAt) {
+    try {
+      premiumSinceStr = new Date(premiumCreatedAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (_) {}
+  }
+
+  let lastLoginStr = 'N/A';
+  if (user.lastLogin) {
+    try {
+      lastLoginStr = new Date(user.lastLogin).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (_) {}
+  }
+
   const isGoogleConnected = !!user.googleUsername;
   const isTwitchConnected = !!(user.twitchUsername || user.twitchId);
   const isDiscordConnected = !!(user.discordUsername || user.discordId);
@@ -213,57 +219,72 @@ export default function AccountsPage() {
                 <h1 className="text-2xl font-black tracking-tight uppercase">{user.username}</h1>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
-                {/* Base Role Badge */}
-                <p className="text-[10px] text-purple-400 uppercase font-bold tracking-widest bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20 inline-block">
-                  {user.email.toLowerCase() === 'marc.aeschbach@icloud.com' ? 'Admin' : 'User'}
-                </p>
-
-                {/* Subscription Tier Badge */}
                 {loadingTier ? (
-                  <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/40 inline-flex items-center gap-1.5">
+                  <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/40 inline-flex items-center gap-1.5 animate-pulse">
                     <Loader2 size={10} className="animate-spin text-purple-500" />
-                    <span>Loading Plan...</span>
+                    <span>Loading Roles...</span>
                   </p>
-                ) : activeTier > 0 ? (
-                  <Link
-                    href="/premium"
-                    className="text-[10px] text-emerald-400 hover:text-emerald-300 uppercase font-bold tracking-widest bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1 transition-all"
-                  >
-                    Tier {activeTier} Subscriber <span className="text-[8px]">➜</span>
-                  </Link>
-                ) : null}
+                ) : (
+                  <>
+                    {/* Base Role Badge */}
+                    <p className="text-[10px] text-purple-400 uppercase font-bold tracking-widest bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20 inline-block">
+                      {user.email.toLowerCase() === 'marc.aeschbach@icloud.com' ? 'Admin' : 'User'}
+                    </p>
+
+                    {/* Subscription Tier Badge */}
+                    {activeTier > 0 && (
+                      <p className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 inline-block">
+                        Tier {activeTier} Subscriber
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Profile Source Selector dropdown */}
-          <div className="space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Choose Profile Information Source</h2>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Select which of your connected accounts to import your username and profile picture from.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 pt-1">
-              <div className="flex-1 relative">
-                <select
-                  value={selectedSource}
-                  onChange={handleSourceChange}
-                  disabled={isSaving}
-                  className="w-full bg-zinc-950/40 text-white text-sm px-4 py-3 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all cursor-pointer"
-                >
+          {/* Profile Source Selector */}
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Profile Source</h2>
+              <p className="text-xs text-zinc-500">Sync your profile username and avatar from a connected account.</p>
+            </div>
+            <div className="flex flex-wrap gap-2.5 pt-1">
+              {[
+                { id: 'google', name: 'Google', username: user.googleUsername, icon: "https://www.vectorlogo.zone/logos/google/google-icon.svg", activeColor: 'border-white/20 bg-white/10 text-white' },
+                { id: 'twitch', name: 'Twitch', username: user.twitchUsername, icon: "https://cdn.simpleicons.org/twitch/a970ff", activeColor: 'border-[#9146FF]/30 bg-[#9146FF]/10 text-purple-300' },
+                { id: 'discord', name: 'Discord', username: user.discordUsername, icon: "https://cdn.simpleicons.org/discord/5865F2", activeColor: 'border-[#5865F2]/30 bg-[#5865F2]/10 text-blue-300' },
+              ].map((plat) => {
+                if (!plat.username) return null;
+                const isSelected = selectedSource === plat.id;
+                return (
+                  <button
+                    type="button"
+                    key={plat.id}
+                    disabled={isSaving}
+                    onClick={() => {
+                      if (selectedSource !== plat.id) {
+                        const fakeEvent = { target: { value: plat.id } } as any;
+                        handleSourceChange(fakeEvent);
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? plat.activeColor
+                        : 'border-white/5 bg-white/2 text-zinc-400 hover:text-white hover:border-white/10'
+                    }`}
+                  >
+                    <img src={plat.icon} alt={plat.name} className="h-3.5 w-3.5" />
+                    <span>{plat.username}</span>
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse ml-0.5" />
+                    )}
+                  </button>
+                );
+              })}
 
-                  {user.googleUsername && (
-                    <option value="google" className="bg-zinc-950">Google Profile ({user.googleUsername})</option>
-                  )}
-                  {user.twitchUsername && (
-                    <option value="twitch" className="bg-zinc-950">Twitch Profile ({user.twitchUsername})</option>
-                  )}
-                  {user.discordUsername && (
-                    <option value="discord" className="bg-zinc-950">Discord Profile ({user.discordUsername})</option>
-                  )}
-                </select>
-              </div>
               {isSaving && (
-                <div className="flex items-center justify-center px-4">
+                <div className="flex items-center justify-center px-2">
                   <Loader2 size={16} className="animate-spin text-purple-500" />
                 </div>
               )}
@@ -307,6 +328,28 @@ export default function AccountsPage() {
                   <p className="text-xs font-semibold text-white">{joinDateStr}</p>
                 </div>
               </div>
+
+              <div className="bg-white/2 border border-white/5 rounded-2xl p-4 flex items-center gap-3.5">
+                <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Last Login</p>
+                  <p className="text-xs font-semibold text-white">{lastLoginStr}</p>
+                </div>
+              </div>
+
+              {premiumSinceStr !== 'N/A' && (
+                <div className="bg-white/2 border border-white/5 rounded-2xl p-4 flex items-center gap-3.5">
+                  <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Sparkles size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Premium Member Since</p>
+                    <p className="text-xs font-semibold text-white">{premiumSinceStr}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Twitch ID if connected */}
               {user.twitchId && (
@@ -408,8 +451,8 @@ export default function AccountsPage() {
                     </div>
 
                     {p.connected ? (
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold capitalize ${p.badgeStyle}`}>
-                        ✓ Connected
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold capitalize ${p.badgeStyle}`}>
+                        <Check size={12} className="stroke-[3]" /> Connected
                       </div>
                     ) : (
                       <button
@@ -417,7 +460,7 @@ export default function AccountsPage() {
                         disabled={isSaving}
                         className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${p.btnBg}`}
                       >
-                        Connect <span className="font-black text-sm">+</span>
+                        Connect <Plus size={12} className="stroke-[3]" />
                       </button>
                     )}
                   </div>
@@ -470,20 +513,26 @@ export default function AccountsPage() {
                         </div>
                       </div>
                       
-                      <div className="pt-2.5 border-t border-white/5 grid grid-cols-2 gap-2 text-[10px]">
-                        <div>
-                          <p className="text-zinc-500 font-bold uppercase tracking-wider">Billing Email</p>
-                          <p className="text-zinc-300 font-medium mt-0.5 truncate">{purchase.billingEmail || 'N/A'}</p>
+                      {purchase.grantedByAdmin ? (
+                        <div className="pt-2.5 border-t border-white/5 text-[11px] text-zinc-400 font-medium leading-relaxed">
+                          ✨ You received this membership tier directly from an administrator. Write me on Discord or Email for more information.
                         </div>
-                        <div>
-                          <p className="text-zinc-500 font-bold uppercase tracking-wider">Address</p>
-                          <p className="text-zinc-300 font-medium mt-0.5 truncate">
-                            {purchase.billingAddress
-                              ? `${purchase.billingAddress.fullName}, ${purchase.billingAddress.street}, ${purchase.billingAddress.city}, ${purchase.billingAddress.country}`
-                              : 'N/A'}
-                          </p>
+                      ) : (
+                        <div className="pt-2.5 border-t border-white/5 grid grid-cols-2 gap-2 text-[10px]">
+                          <div>
+                            <p className="text-zinc-500 font-bold uppercase tracking-wider">Billing Email</p>
+                            <p className="text-zinc-300 font-medium mt-0.5 truncate">{purchase.billingEmail || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 font-bold uppercase tracking-wider">Address</p>
+                            <p className="text-zinc-300 font-medium mt-0.5 truncate">
+                              {purchase.billingAddress
+                                ? `${purchase.billingAddress.fullName}, ${purchase.billingAddress.street}, ${purchase.billingAddress.city}, ${purchase.billingAddress.country}`
+                                : 'N/A'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}

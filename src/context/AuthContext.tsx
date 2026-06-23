@@ -12,7 +12,7 @@ import {
   linkWithPopup,
   unlink
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/utils/firebase';
 
 export interface User {
@@ -34,6 +34,7 @@ export interface User {
   twitchAvatar?: string | null;
   discordUsername?: string | null;
   discordAvatar?: string | null;
+  lastLogin?: string;
 }
 
 interface AuthContextType {
@@ -43,6 +44,9 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthModalOpen: boolean;
   isAdmin: boolean;
+  activeTier: number;
+  loadingTier: boolean;
+  premiumCreatedAt: string | null;
   setAuthModalOpen: (open: boolean) => void;
   loginWithGoogle: () => Promise<void>;
   linkGoogleAccount: () => Promise<void>;
@@ -83,12 +87,57 @@ const generateLocalToken = (email: string, uid: string) => {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setRawUser] = useState<User | null>(null);
+  const setUser = (newUser: User | null) => {
+    if (newUser) {
+      if (!user || user.userId !== newUser.userId) {
+        setLoadingTier(true);
+      }
+    } else {
+      setLoadingTier(false);
+    }
+    setRawUser(newUser);
+  };
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [activeTier, setActiveTier] = useState<number>(0);
+  const [premiumCreatedAt, setPremiumCreatedAt] = useState<string | null>(null);
+  const [loadingTier, setLoadingTier] = useState<boolean>(true);
 
   const isAdmin = user?.email?.toLowerCase() === 'marc.aeschbach@icloud.com';
+
+  useEffect(() => {
+    if (!user || !user.userId) {
+      setActiveTier(0);
+      setPremiumCreatedAt(null);
+      setLoadingTier(false);
+      return;
+    }
+
+    setLoadingTier(true);
+    const q = query(
+      collection(db, 'premium'),
+      where('userId', '==', user.userId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const subData = snapshot.docs[0].data();
+        setActiveTier(subData.tier || 0);
+        setPremiumCreatedAt(subData.createdAt || null);
+      } else {
+        setActiveTier(0);
+        setPremiumCreatedAt(null);
+      }
+      setLoadingTier(false);
+    }, (err) => {
+      console.error("Error listening to premium sub:", err);
+      setLoadingTier(false);
+    });
+
+    return () => unsubscribe();
+  }, [user?.userId]);
 
   const proxyAvatar = (url: string) => {
     if (url && url.startsWith('https://lh3.googleusercontent.com/')) {
@@ -101,8 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const subQ = query(
         collection(db, 'premium'),
-        where('userId', '==', userId),
-        where('status', '==', 'active')
+        where('userId', '==', userId)
       );
       const subSnap = await getDocs(subQ);
       let isTier3 = false;
@@ -260,6 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdVia: data.createdVia,
             signUpMethod: data.signUpMethod,
             createdAt: data.createdAt,
+            lastLogin: data.lastLogin || undefined,
             twitchId: data.twitchId || null,
             discordId: data.discordId || null,
             infoSource: data.infoSource || null,
@@ -539,6 +588,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdVia: data.createdVia,
           signUpMethod: data.signUpMethod,
           createdAt: data.createdAt,
+          lastLogin: data.lastLogin || undefined,
           twitchId: data.twitchId || null,
           discordId: data.discordId || null,
           infoSource: data.infoSource || null,
@@ -590,6 +640,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthModalOpen,
         isAdmin,
+        activeTier,
+        loadingTier,
+        premiumCreatedAt,
         setAuthModalOpen,
         loginWithGoogle,
         linkGoogleAccount,

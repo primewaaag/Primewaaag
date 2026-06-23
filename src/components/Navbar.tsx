@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2, Sparkles, Gift, Gem, Clock } from 'lucide-react';
+import { Menu, X, Puzzle, FolderCode, BarChart2, LogIn, ChevronDown, User, LogOut, Share2, Sparkles, Gift, Gem, Clock, Terminal, Gamepad2, TrendingUp, Trophy } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Navbar() {
@@ -188,11 +188,12 @@ export default function Navbar() {
             </li>
             <li>
               <Link
-                href="/stats"
-                className={`category-link ${pathname === '/stats' ? 'active' : ''}`}
+                href="/stream/profile"
+                className={`category-link ${pathname.startsWith('/stream') ? 'active' : ''}`}
+                onClick={() => setActiveMenu(null)}
               >
                 <BarChart2 size={13} className="text-cyan-400" />
-                Stats
+                Stream
               </Link>
             </li>
             <li>
@@ -317,6 +318,7 @@ export default function Navbar() {
               </li>
             </ul>
           </div>
+
 
           {/* Socials Submenu */}
           <div className={`submenu-socials ${renderedMenu === 'socials' ? 'visible' : ''} w-[180px]`}>
@@ -463,12 +465,36 @@ export default function Navbar() {
                 Projects
               </Link>
               <Link
-                href="/stats"
+                href="/stream/commands"
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
               >
-                <BarChart2 size={16} className="text-cyan-400" />
-                Stats
+                <Terminal size={16} className="text-cyan-400" />
+                Commands
+              </Link>
+              <Link
+                href="/stream/setup"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <Gamepad2 size={16} className="text-cyan-400" />
+                Setup
+              </Link>
+              <Link
+                href="/stream/ranks"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <TrendingUp size={16} className="text-cyan-400" />
+                Ranks/Tracker
+              </Link>
+              <Link
+                href="/stream/leaderboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white"
+              >
+                <Trophy size={16} className="text-cyan-400" />
+                Loyalty Leaderboard
               </Link>
               <Link
                 href="/premium"

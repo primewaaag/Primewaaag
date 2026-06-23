@@ -3,6 +3,7 @@ export interface DownloadAction {
   type: 'file' | 'copy';
   label?: string; // Optional label for file downloads (e.g. "Download Codex Installer")
   fileUrl?: string;
+  file?: any;
   copyIcon?: string;
   copyTitle?: string;
   copyDesc?: string;

@@ -1,45 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Award, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
-import { db } from '@/utils/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function PremiumPage() {
-  const { user } = useAuth();
-  const [activeTier, setActiveTier] = useState<number>(0);
-  const [loadingTier, setLoadingTier] = useState<boolean>(true);
+function PremiumContent() {
+  const { user, isLoading, activeTier, loadingTier } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  useEffect(() => {
-    const fetchActiveTier = async () => {
-      if (!user || !user.userId) {
-        setLoadingTier(false);
-        return;
-      }
-      try {
-        const q = query(
-          collection(db, 'premium'),
-          where('userId', '==', user.userId),
-          where('status', '==', 'active')
-        );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const subData = snap.docs[0].data();
-          setActiveTier(subData.tier || 0);
-        } else {
-          setActiveTier(0);
-        }
-      } catch (err) {
-        console.error('Failed to fetch active tier:', err);
-      } finally {
-        setLoadingTier(false);
-      }
-    };
-    fetchActiveTier();
-  }, [user]);
+  const successParam = searchParams.get('success');
+  const tierParam = parseInt(searchParams.get('tier') || '0', 10);
+  const oldTierParam = parseInt(searchParams.get('oldTier') || '0', 10);
+  const [showSuccessModal, setShowSuccessModal] = useState(successParam === 'true');
 
   const isTwitchSubscriber = !!(
     user &&
@@ -53,7 +29,7 @@ export default function PremiumPage() {
   const inPlan = currentTierLevel > 0;
 
   const renderCardButton = (cardTier: 1 | 2 | 3) => {
-    if (user && loadingTier) {
+    if (isLoading || (user && loadingTier)) {
       return (
         <button
           disabled
@@ -223,7 +199,7 @@ export default function PremiumPage() {
                 <div className="text-center h-4" />
 
                 <p className="text-xs text-zinc-300 font-medium pt-2">
-                  Name Attribution On nutty.gg!
+                  Featured Supporter slot on Homepage!
                 </p>
 
                 <ul className="space-y-3 pt-2">
@@ -233,7 +209,7 @@ export default function PremiumPage() {
                   </li>
                   <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-semibold">
                     <Check size={14} className="text-zinc-500 mt-0.5 flex-shrink-0" />
-                    <span>🔥 Attribution on waaag.dev</span>
+                    <span>🌟 Featured Supporter slot on Homepage</span>
                   </li>
                   <li className="flex items-start gap-2.5 text-xs text-zinc-400">
                     <Check size={14} className="text-zinc-500 mt-0.5 flex-shrink-0" />
@@ -249,6 +225,118 @@ export default function PremiumPage() {
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/70 animate-fadeIn">
+          <div className="relative max-w-md w-full bg-[#121214] border border-zinc-800 rounded-[28px] p-8 shadow-2xl overflow-hidden text-center flex flex-col items-center gap-6">
+            {/* Glowing background blobs */}
+            <div className="absolute -top-12 -left-12 w-32 h-32 bg-purple-600/10 rounded-full blur-3xl animate-pulse pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-indigo-600/10 rounded-full blur-3xl animate-pulse pointer-events-none" />
+
+            {/* Premium Badge Icon */}
+            <div className="relative flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-lg shadow-purple-500/20 animate-bounce">
+              <div className="flex items-center justify-center h-full w-full rounded-full bg-[#121214]">
+                <Award size={36} className="text-purple-400" />
+              </div>
+            </div>
+
+            {/* Header */}
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-zinc-400">
+                {oldTierParam > 0 ? 'TIER UPGRADED!' : 'PREMIUM UNLOCKED!'}
+              </h2>
+              <p className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                {oldTierParam > 0 
+                  ? `Upgraded from Tier ${oldTierParam} to Tier ${tierParam || 1}` 
+                  : `Welcome to Tier ${tierParam || 1} Lifetime Membership`
+                }
+              </p>
+            </div>
+
+            {/* Perks Box */}
+            <div className="w-full bg-zinc-950/50 border border-zinc-900 rounded-2xl p-5 text-left space-y-3.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
+                YOUR UNLOCKED PERKS:
+              </span>
+              <ul className="space-y-3">
+                {(tierParam === 1 || tierParam === 0) && (
+                  <>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Access to teasers on Discord</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Private Discord Channels</span>
+                    </li>
+                  </>
+                )}
+                {tierParam === 2 && (
+                  <>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>💎 Exclusive Widget Access</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Access to teasers on Discord</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Private Discord Channels</span>
+                    </li>
+                  </>
+                )}
+                {tierParam === 3 && (
+                  <>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-100 font-semibold">
+                      <CheckCircle size={14} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                      <span>🌟 Featured Supporter slot on Homepage</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>💎 Exclusive Widget Access</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Access to teasers on Discord</span>
+                    </li>
+                    <li className="flex items-start gap-2.5 text-xs text-zinc-300 font-medium">
+                      <CheckCircle size={14} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span>Private Discord Channels</span>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            {/* Action */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccessModal(false);
+                router.replace('/premium');
+              }}
+              className="w-full py-3.5 px-6 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg hover:shadow-purple-500/20 cursor-pointer text-center block"
+            >
+              Continue to Portal
+            </button>
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+export default function PremiumPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
+      </div>
+    }>
+      <PremiumContent />
+    </Suspense>
   );
 }

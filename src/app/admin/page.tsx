@@ -7,10 +7,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useDownloads } from '@/hooks/useDownloads';
 import { useNews } from '@/hooks/useNews';
 import { useProjects } from '@/hooks/useProjects';
-import { storage } from '@/utils/firebase';
+import { db, storage } from '@/utils/firebase';
 import { Download, DownloadAction } from '@/utils/downloads';
 import { VersionEntry } from '@/hooks/useProjects';
-import { Shield, Users, Puzzle, Plus, Edit2, Trash2, Check, X, Loader2, Sparkles, MoreVertical, Newspaper, Video, FolderCode, Tag, GitBranch, ChevronDown, ChevronUp, Download as DownloadIcon } from 'lucide-react';
+import { Shield, Users, Puzzle, Plus, Edit2, Trash2, Check, X, Loader2, Sparkles, MoreVertical, Newspaper, Video, FolderCode, Tag, GitBranch, ChevronDown, ChevronUp, Download as DownloadIcon, Copy, Terminal } from 'lucide-react';
 
 interface RegisteredUser {
   id: string;
@@ -21,6 +21,10 @@ interface RegisteredUser {
   avatar: string;
   lastLogin: string;
   userId: string;
+  createdAt?: string;
+  googleUsername?: string | null;
+  twitchUsername?: string | null;
+  discordUsername?: string | null;
 }
 
 export default function AdminPage() {
@@ -28,10 +32,39 @@ export default function AdminPage() {
   const { downloads, isLoading: downloadsLoading, refresh: refreshDownloads } = useDownloads();
   const { news, isLoading: newsLoading, refresh: refreshNews } = useNews();
 
-  const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'projects' | 'users'>('downloads');
+  const [activeTab, setActiveTab] = useState<'downloads' | 'news' | 'projects' | 'users' | 'commands'>('downloads');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Set URL parameter on activeTab change (client-side)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      if (pageParam && ['downloads', 'news', 'projects', 'users', 'commands'].includes(pageParam)) {
+        setActiveTab(pageParam as any);
+      }
+    }
+  }, []);
+
+  const handleTabChange = (tab: 'downloads' | 'news' | 'projects' | 'users' | 'commands') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', tab);
+      window.history.pushState({}, '', url.toString());
+    }
+  };
+
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState<{ [userId: string]: { subId: string; tier: number } }>({});
 
   // Form States
   const [formId, setFormId] = useState('');
@@ -66,6 +99,7 @@ export default function AdminPage() {
     setActionType('file');
     setActionLabel('');
     setActionFileUrl('');
+    setActionFileFile(null);
     setActionCopyIcon('link');
     setActionCopyTitle('');
     setActionCopyDesc('');
@@ -75,8 +109,8 @@ export default function AdminPage() {
 
   const handleSaveAction = () => {
     setApiError('');
-    if (actionType === 'file' && !actionFileUrl) {
-      setApiError('File URL is required for file action.');
+    if (actionType === 'file' && !actionFileFile && !actionFileUrl) {
+      setApiError('File is required for file action.');
       return;
     }
     if (actionType === 'copy' && !actionCopyText) {
@@ -88,7 +122,8 @@ export default function AdminPage() {
       id: actionFormId || Date.now().toString(),
       type: actionType,
       label: actionType === 'file' ? actionLabel : undefined,
-      fileUrl: actionType === 'file' ? actionFileUrl : undefined,
+      fileUrl: actionType === 'file' ? (actionFileFile ? undefined : actionFileUrl) : undefined,
+      file: actionType === 'file' ? (actionFileFile || undefined) : undefined,
       copyIcon: actionType === 'copy' ? actionCopyIcon : undefined,
       copyTitle: actionType === 'copy' ? actionCopyTitle : undefined,
       copyDesc: actionType === 'copy' ? actionCopyDesc : undefined,
@@ -109,6 +144,7 @@ export default function AdminPage() {
     setActionType(act.type);
     setActionLabel(act.label || '');
     setActionFileUrl(act.fileUrl || '');
+    setActionFileFile(act.file || null);
     setActionCopyIcon(act.copyIcon || 'link');
     setActionCopyTitle(act.copyTitle || '');
     setActionCopyDesc(act.copyDesc || '');
@@ -161,7 +197,7 @@ export default function AdminPage() {
   const [projFormQvImgRedirect, setProjFormQvImgRedirect] = useState('');
   // Detail page
   const [projFormRedirectLink, setProjFormRedirectLink] = useState('');
-  const [projFormImages, setProjFormImages] = useState<{ url: string; redirectLink?: string; alt?: string }[]>([]);
+  const [projFormImages, setProjFormImages] = useState<{ url?: string; file?: File | null; redirectLink?: string; alt?: string }[]>([]);
   const [projFormImgUrl, setProjFormImgUrl] = useState('');
   const [projFormImgRedirect, setProjFormImgRedirect] = useState('');
   const [projFormImgAlt, setProjFormImgAlt] = useState('');
@@ -173,35 +209,27 @@ export default function AdminPage() {
   const [projFormFeatured, setProjFormFeatured] = useState(false);
   const [editingProject, setEditingProject] = useState<any | null>(null);
 
-  const [uploadingState, setUploadingState] = useState<{ [key: string]: boolean }>({});
+  // Command Form States
+  const [cmdName, setCmdName] = useState('');
+  const [cmdPermission, setCmdPermission] = useState<'everyone' | 'moderator'>('everyone');
+  const [cmdResponse, setCmdResponse] = useState('');
+  const [cmdAliases, setCmdAliases] = useState('');
+  const [editingCmd, setEditingCmd] = useState<any | null>(null);
+  const [commandsList, setCommandsList] = useState<any[]>([]);
+  const [commandsLoading, setCommandsLoading] = useState(false);
 
-  const handleFileUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    fieldKey: string,
-    setUrl: (url: string) => void
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingState(prev => ({ ...prev, [fieldKey]: true }));
-    setApiError('');
-    setApiSuccess('');
-    try {
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
-      setUrl(url);
-      setApiSuccess(`Uploaded ${file.name} successfully!`);
-    } catch (err: any) {
-      console.error(err);
-      let msg = err.message || 'Failed to upload file to Firebase Storage.';
-      if (msg.includes('permission') || msg.includes('unauthorized') || msg.includes('Permission')) {
-        msg = 'Firebase Storage Permission Error: Please update your Storage Security Rules in the Firebase Console (Rules tab) to: \n\nallow read, write: if true; \n\nso files can be uploaded without authentication.';
-      }
-      setApiError(msg);
-    } finally {
-      setUploadingState(prev => ({ ...prev, [fieldKey]: false }));
-    }
+  // Deferred File Upload States
+  const [formImageFile, setFormImageFile] = useState<File | null>(null);
+  const [actionFileFile, setActionFileFile] = useState<File | null>(null);
+  const [newsFormMediaFile, setNewsFormMediaFile] = useState<File | null>(null);
+  const [projFormQvImgFile, setProjFormQvImgFile] = useState<File | null>(null);
+  const [projFormImgFile, setProjFormImgFile] = useState<File | null>(null);
+
+  const uploadFileToStorage = async (file: File): Promise<string> => {
+    const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+    const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    return await getDownloadURL(snapshot.ref);
   };
 
   const STATUS_COLORS = ['emerald', 'cyan', 'amber', 'rose', 'blue', 'purple', 'zinc', 'white'];
@@ -240,6 +268,8 @@ export default function AdminPage() {
     setProjNewVersion('');
     setProjNewChanges('');
     setProjFormFeatured(false);
+    setProjFormQvImgFile(null);
+    setProjFormImgFile(null);
     setEditingProject(null);
   };
 
@@ -272,6 +302,8 @@ export default function AdminPage() {
     setProjNewVersion('');
     setProjNewChanges('');
     setProjFormFeatured(proj.featured === true);
+    setProjFormQvImgFile(null);
+    setProjFormImgFile(null);
     setApiError('');
     setApiSuccess('');
   };
@@ -322,14 +354,13 @@ export default function AdminPage() {
   };
 
   const handleAddImage = () => {
-    const url = projFormImgUrl.trim();
-    if (!url) return;
+    if (!projFormImgFile) return;
     setProjFormImages(prev => [...prev, {
-      url,
+      file: projFormImgFile,
       redirectLink: projFormImgRedirect.trim() || undefined,
       alt: projFormImgAlt.trim() || undefined,
     }]);
-    setProjFormImgUrl('');
+    setProjFormImgFile(null);
     setProjFormImgRedirect('');
     setProjFormImgAlt('');
   };
@@ -349,6 +380,31 @@ export default function AdminPage() {
     setActionLoading(true);
     const method = editingProject ? 'PUT' : 'POST';
     try {
+      let finalQvImgUrl = projFormQvImgUrl;
+      if (projFormQvImgEnabled && projFormQvImgFile) {
+        setApiSuccess('Uploading Quick View Image...');
+        finalQvImgUrl = await uploadFileToStorage(projFormQvImgFile);
+      }
+
+      const finalImages = [];
+      for (const img of projFormImages) {
+        if (img.file) {
+          setApiSuccess(`Uploading project image: ${img.file.name}...`);
+          const uploadedUrl = await uploadFileToStorage(img.file);
+          finalImages.push({
+            url: uploadedUrl,
+            redirectLink: img.redirectLink,
+            alt: img.alt,
+          });
+        } else {
+          finalImages.push({
+            url: img.url,
+            redirectLink: img.redirectLink,
+            alt: img.alt,
+          });
+        }
+      }
+
       const response = await fetch('/.netlify/functions/manage-projects', {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -363,11 +419,11 @@ export default function AdminPage() {
           quickViewButton: projFormQvBtnEnabled && projFormQvBtnLabel && projFormQvBtnLink
             ? { icon: projFormQvBtnIcon, label: projFormQvBtnLabel, link: projFormQvBtnLink }
             : null,
-          quickViewImage: projFormQvImgEnabled && projFormQvImgUrl
-            ? { url: projFormQvImgUrl, redirectLink: projFormQvImgRedirect || undefined }
+          quickViewImage: projFormQvImgEnabled && finalQvImgUrl
+            ? { url: finalQvImgUrl, redirectLink: projFormQvImgRedirect || undefined }
             : null,
           redirectLink: projFormRedirectLink || null,
-          images: projFormImages,
+          images: finalImages,
           versions: projFormVersions,
           featured: false,
         }),
@@ -414,31 +470,266 @@ export default function AdminPage() {
   const [apiSuccess, setApiSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Fetch registered users
-  useEffect(() => {
-    if (activeTab === 'users' && isAdmin && token) {
-      setUsersLoading(true);
-      setApiError('');
-      fetch('/.netlify/functions/get-users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+  const handleUpdateUserSubscription = async (targetUser: RegisteredUser, newTier: number) => {
+    setApiError('');
+    setApiSuccess('');
+    setActionLoading(true);
+    try {
+      const { collection, doc, setDoc, deleteDoc, getDocs, query, where } = await import('firebase/firestore');
+      
+      // 1. Find any existing subscription for this user
+      const subQ = query(
+        collection(db, 'premium'),
+        where('userId', '==', targetUser.userId)
+      );
+      const subSnap = await getDocs(subQ);
+
+      // 2. If new tier is 0 (None), delete the subscription document(s) from database
+      if (newTier === 0) {
+        for (const docSnap of subSnap.docs) {
+          await deleteDoc(doc(db, 'premium', docSnap.id));
         }
-      })
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to fetch users');
-          return res.json();
-        })
-        .then(data => {
-          setUsers(data);
-          setUsersLoading(false);
-        })
-        .catch(err => {
-          console.error(err);
-          setApiError('Failed to load registered users from database.');
-          setUsersLoading(false);
+        // Update local state map
+        setUserSubscriptions(prev => {
+          const next = { ...prev };
+          delete next[targetUser.userId];
+          return next;
         });
+      } else {
+        let subId;
+        const targetPricePaid = newTier === 1 ? 10 : newTier === 2 ? 25 : 50;
+
+        if (!subSnap.empty) {
+          // Update the existing document
+          const docSnap = subSnap.docs[0];
+          subId = docSnap.id;
+          await setDoc(doc(db, 'premium', subId), {
+            tier: newTier,
+            pricePaid: targetPricePaid
+          }, { merge: true });
+        } else {
+          // Create new subscription document (no status field)
+          subId = `sub_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await setDoc(doc(db, 'premium', subId), {
+            id: subId,
+            userId: targetUser.userId,
+            tier: newTier,
+            pricePaid: targetPricePaid,
+            createdAt: new Date().toISOString(),
+            expiresAt: null
+          });
+        }
+
+        // Create order document in orders collection
+        const orderId = `order_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await setDoc(doc(db, 'orders', orderId), {
+          id: orderId,
+          userId: targetUser.userId,
+          subscriptionId: subId,
+          tier: newTier,
+          cost: 0,
+          createdAt: new Date().toISOString(),
+          grantedByAdmin: true,
+          billingEmail: null,
+          billingAddress: null
+        });
+
+        // Update local state map
+        setUserSubscriptions(prev => ({
+          ...prev,
+          [targetUser.userId]: { subId, tier: newTier }
+        }));
+      }
+
+      // 4. Sync supporter status
+      if (newTier === 3) {
+        await setDoc(doc(db, 'supporters', targetUser.userId), {
+          userId: targetUser.userId,
+          username: targetUser.username,
+          avatar: targetUser.avatar,
+        });
+      } else {
+        try {
+          await deleteDoc(doc(db, 'supporters', targetUser.userId));
+        } catch (e) {
+          console.error('Failed to clean up supporter document:', e);
+        }
+      }
+
+      setApiSuccess(`Successfully updated ${targetUser.username}'s premium tier to Tier ${newTier}`);
+    } catch (err: any) {
+      console.error(err);
+      setApiError(err.message || 'Failed to update user premium subscription.');
+    } finally {
+      setActionLoading(false);
     }
-  }, [activeTab, isAdmin, token]);
+  };
+
+  // Fetch registered users and active subscriptions directly from Firestore (client-side admin)
+  useEffect(() => {
+    const fetchUsersAndSubscriptions = async () => {
+      if (activeTab === 'users' && isAdmin) {
+        setUsersLoading(true);
+        setApiError('');
+        try {
+          const { collection, getDocs, query, where } = await import('firebase/firestore');
+          
+          // Fetch users
+          const usersCol = collection(db, 'users');
+          const snapshot = await getDocs(query(usersCol));
+          const list: RegisteredUser[] = [];
+          snapshot.forEach(doc => {
+            list.push({ id: doc.id, ...(doc.data() as any) });
+          });
+          setUsers(list);
+
+          // Fetch active subscriptions
+          const premiumCol = collection(db, 'premium');
+          const premiumSnap = await getDocs(premiumCol);
+          const subsMap: { [userId: string]: { subId: string; tier: number } } = {};
+          premiumSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.userId) {
+              subsMap[data.userId] = {
+                subId: doc.id,
+                tier: data.tier || 0
+              };
+            }
+          });
+          setUserSubscriptions(subsMap);
+        } catch (err: any) {
+          console.error(err);
+          setApiError(err.message || 'Failed to fetch users');
+        } finally {
+          setUsersLoading(false);
+        }
+      }
+    };
+    fetchUsersAndSubscriptions();
+  }, [activeTab, isAdmin]);
+
+  // Fetch stream commands directly from Firestore (client-side admin)
+  useEffect(() => {
+    const fetchCommands = async () => {
+      if (activeTab === 'commands' && isAdmin) {
+        setCommandsLoading(true);
+        try {
+          const { collection, getDocs } = await import('firebase/firestore');
+          const cmdCol = collection(db, 'commands');
+          const snapshot = await getDocs(cmdCol);
+          const list: any[] = [];
+          snapshot.forEach(doc => {
+            list.push({ id: doc.id, ...doc.data() });
+          });
+          // Sort alphabetically by name (case-insensitive)
+          list.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+          setCommandsList(list);
+        } catch (err: any) {
+          console.error(err);
+          setApiError(err.message || 'Failed to fetch commands');
+        } finally {
+          setCommandsLoading(false);
+        }
+      }
+    };
+    fetchCommands();
+  }, [activeTab, isAdmin]);
+
+  const clearCommandForm = () => {
+    setCmdName('');
+    setCmdPermission('everyone');
+    setCmdResponse('');
+    setCmdAliases('');
+    setEditingCmd(null);
+  };
+
+  const handleCommandSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError('');
+    setApiSuccess('');
+    if (!cmdName.trim() || !cmdResponse.trim()) {
+      setApiError('Command name and response are required.');
+      return;
+    }
+    
+    // Ensure name starts with !
+    let formattedName = cmdName.trim();
+    if (!formattedName.startsWith('!')) {
+      formattedName = '!' + formattedName;
+    }
+
+    setActionLoading(true);
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      
+      // Parse aliases (comma separated list)
+      const parsedAliases = cmdAliases
+        .split(',')
+        .map(a => a.trim())
+        .filter(a => a.length > 0)
+        .map(a => a.startsWith('!') ? a : '!' + a);
+
+      const cmdId = formattedName.toLowerCase();
+      
+      await setDoc(doc(db, 'commands', cmdId), {
+        id: cmdId,
+        name: formattedName,
+        permission: cmdPermission,
+        response: cmdResponse.trim(),
+        aliases: parsedAliases,
+        createdAt: editingCmd?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      setApiSuccess(editingCmd ? 'Command updated!' : 'Command added!');
+      clearCommandForm();
+      
+      // Refresh list
+      const { collection, getDocs } = await import('firebase/firestore');
+      const cmdCol = collection(db, 'commands');
+      const snapshot = await getDocs(cmdCol);
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      list.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+      setCommandsList(list);
+    } catch (err: any) {
+      console.error(err);
+      setApiError(err.message || 'Failed to save command.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteCommand = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this command?')) return;
+    setApiError('');
+    setApiSuccess('');
+    setActionLoading(true);
+    try {
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'commands', id));
+      setApiSuccess('Command deleted!');
+      setCommandsList(prev => prev.filter(c => c.id !== id));
+      if (editingCmd?.id === id) {
+        clearCommandForm();
+      }
+    } catch (err: any) {
+      console.error(err);
+      setApiError(err.message || 'Failed to delete command.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEditCommandClick = (cmd: any) => {
+    setEditingCmd(cmd);
+    setCmdName(cmd.name);
+    setCmdPermission(cmd.permission || 'everyone');
+    setCmdResponse(cmd.response);
+    setCmdAliases((cmd.aliases || []).join(', '));
+  };
 
   const clearForm = () => {
     setFormId('');
@@ -485,8 +776,8 @@ export default function AdminPage() {
     setApiError('');
     setApiSuccess('');
 
-    if (!formId || !formTitle || !formPrice || !formImageUrl || !formCategory) {
-      setApiError('ID, Title, Price, Image URL, and Category are required.');
+    if (!formId || !formTitle || !formPrice || (!formImageUrl && !formImageFile) || !formCategory) {
+      setApiError('ID, Title, Price, Image File, and Category are required.');
       return;
     }
 
@@ -494,6 +785,38 @@ export default function AdminPage() {
     const method = editingDl ? 'PUT' : 'POST';
 
     try {
+      let finalImageUrl = formImageUrl;
+      if (formImageFile) {
+        setApiSuccess('Uploading Cover Image...');
+        finalImageUrl = await uploadFileToStorage(formImageFile);
+      }
+
+      const finalActions = [];
+      for (const act of formActions) {
+        if (act.type === 'file' && act.file) {
+          setApiSuccess(`Uploading Action File: ${act.file.name}...`);
+          const uploadedUrl = await uploadFileToStorage(act.file);
+          finalActions.push({
+            id: act.id,
+            type: act.type,
+            label: act.label,
+            fileUrl: uploadedUrl,
+          });
+        } else {
+          finalActions.push({
+            id: act.id,
+            type: act.type,
+            label: act.label,
+            fileUrl: act.fileUrl,
+            copyIcon: act.copyIcon,
+            copyTitle: act.copyTitle,
+            copyDesc: act.copyDesc,
+            copyText: act.copyText,
+            copyBtnText: act.copyBtnText,
+          });
+        }
+      }
+
       const response = await fetch('/.netlify/functions/manage-downloads', {
         method,
         headers: {
@@ -504,7 +827,7 @@ export default function AdminPage() {
           id: formId,
           title: formTitle,
           price: formPrice,
-          imageUrl: formImageUrl,
+          imageUrl: finalImageUrl,
           category: formCategory,
           description: formDesc,
           featured: false,
@@ -515,7 +838,7 @@ export default function AdminPage() {
           copyDesc: formCopyDesc,
           copyText: formCopyText,
           copyBtnText: formCopyBtnText,
-          actions: formActions,
+          actions: finalActions,
         })
       });
 
@@ -611,6 +934,12 @@ export default function AdminPage() {
     const method = editingNews ? 'PUT' : 'POST';
 
     try {
+      let finalMediaUrl = newsFormMediaUrl;
+      if (newsFormMediaFile) {
+        setApiSuccess('Uploading Media Image...');
+        finalMediaUrl = await uploadFileToStorage(newsFormMediaFile);
+      }
+
       const response = await fetch('/.netlify/functions/manage-news', {
         method,
         headers: {
@@ -623,7 +952,7 @@ export default function AdminPage() {
           content: newsFormContent,
           type: newsFormType,
           date: newsFormDate,
-          mediaUrl: newsFormMediaUrl || null,
+          mediaUrl: finalMediaUrl || null,
           readMoreUrl: newsFormReadMoreUrl || null
         })
       });
@@ -723,59 +1052,71 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen text-white selection:bg-purple-500/30">
+    <main className="min-h-screen text-white selection:bg-purple-500/30 relative overflow-hidden bg-transparent">
+      {/* Ambient background glows */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-[160px] pointer-events-none" />
+
       <Navbar />
 
-      <div className="pt-28 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+      <div className="pt-28 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 relative z-10">
 
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <Shield size={20} />
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-8 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner">
+              <Shield size={24} className="animate-pulse" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight">Admin Dashboard</h1>
-              <p className="text-xs text-purple-400">System settings and collections database panel.</p>
+              <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">Admin Dashboard</h1>
+              <p className="text-xs text-purple-400/80 font-medium mt-0.5">System settings and collections database panel.</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
+          <div className="flex flex-wrap gap-1.5 bg-zinc-900/60 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-lg">
             <button
-              onClick={() => setActiveTab('downloads')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'downloads' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+              onClick={() => handleTabChange('downloads')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer duration-300 ${activeTab === 'downloads' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
             >
               <DownloadIcon size={14} /> Downloads
             </button>
             <button
-              onClick={() => setActiveTab('news')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'news' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+              onClick={() => handleTabChange('news')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer duration-300 ${activeTab === 'news' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
             >
               <Newspaper size={14} /> News
             </button>
             <button
-              onClick={() => setActiveTab('projects')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'projects' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+              onClick={() => handleTabChange('projects')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer duration-300 ${activeTab === 'projects' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
             >
               <FolderCode size={14} /> Projects
             </button>
             <button
-              onClick={() => setActiveTab('users')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'users' ? 'bg-purple-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+              onClick={() => handleTabChange('users')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer duration-300 ${activeTab === 'users' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
             >
               <Users size={14} /> Registered Users
+            </button>
+            <button
+              onClick={() => handleTabChange('commands')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer duration-300 ${activeTab === 'commands' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <Terminal size={14} /> Commands
             </button>
           </div>
         </div>
 
         {/* ALERTS */}
         {apiError && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm font-semibold backdrop-blur-md shadow-lg animate-fadeIn flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
             {apiError}
           </div>
         )}
         {apiSuccess && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm">
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400 text-sm font-semibold backdrop-blur-md shadow-lg animate-fadeIn flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
             {apiSuccess}
           </div>
         )}
@@ -861,23 +1202,21 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Image URL</label>
+                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Cover Image</label>
                   <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={formImageUrl}
-                      onChange={(e) => setFormImageUrl(e.target.value)}
-                      placeholder="e.g. https://domain.com/image.png"
-                      className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                    />
+                    <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-3 py-2.5 rounded-lg border border-white/5 truncate">
+                      {formImageFile ? `Selected: ${formImageFile.name}` : (formImageUrl ? `Current: ${formImageUrl.split('/').pop()}` : 'No image selected')}
+                    </div>
                     <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                      {uploadingState['formImageUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                      <span>Choose File</span>
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'formImageUrl', setFormImageUrl)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setFormImageFile(file);
+                        }}
                         className="hidden"
-                        disabled={uploadingState['formImageUrl']}
                       />
                     </label>
                   </div>
@@ -949,22 +1288,20 @@ export default function AdminPage() {
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase">File Download URL</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase">File Upload</label>
                           <div className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={actionFileUrl}
-                              onChange={(e) => setActionFileUrl(e.target.value)}
-                              placeholder="https://... or upload file"
-                              className="flex-grow bg-zinc-950/50 text-white text-xs px-2 py-1.5 rounded-lg border border-white/5 focus:outline-none"
-                            />
+                            <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-2 py-1.5 rounded-lg border border-white/5 truncate">
+                              {actionFileFile ? `Selected: ${actionFileFile.name}` : (actionFileUrl ? `Current: ${actionFileUrl.split('/').pop()}` : 'No file chosen')}
+                            </div>
                             <label className="flex-shrink-0 flex items-center justify-center h-[30px] px-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                              {uploadingState['actionFileUrl'] ? <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" /> : 'Upload File'}
+                              <span>Choose File</span>
                               <input
                                 type="file"
-                                onChange={(e) => handleFileUpload(e, 'actionFileUrl', setActionFileUrl)}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) setActionFileFile(file);
+                                }}
                                 className="hidden"
-                                disabled={uploadingState['actionFileUrl']}
                               />
                             </label>
                           </div>
@@ -1245,23 +1582,21 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Media URL (Optional)</label>
+                  <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Media Image (Optional)</label>
                   <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={newsFormMediaUrl}
-                      onChange={(e) => setNewsFormMediaUrl(e.target.value)}
-                      placeholder="Image URL or YouTube video link"
-                      className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-3 py-2.5 rounded-lg border border-white/5 focus:border-purple-500/40 focus:outline-none transition-all"
-                    />
+                    <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-3 py-2.5 rounded-lg border border-white/5 truncate">
+                      {newsFormMediaFile ? `Selected: ${newsFormMediaFile.name}` : (newsFormMediaUrl ? `Current: ${newsFormMediaUrl.split('/').pop()}` : 'No image selected')}
+                    </div>
                     <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                      {uploadingState['newsFormMediaUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                      <span>Choose File</span>
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'newsFormMediaUrl', setNewsFormMediaUrl)}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setNewsFormMediaFile(file);
+                        }}
                         className="hidden"
-                        disabled={uploadingState['newsFormMediaUrl']}
                       />
                     </label>
                   </div>
@@ -1535,19 +1870,21 @@ export default function AdminPage() {
                   {projFormQvImgEnabled && (
                     <div className="space-y-2">
                       <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-zinc-600 uppercase">Image / YouTube URL</label>
+                        <label className="text-[9px] font-bold text-zinc-600 uppercase">Cover Image</label>
                         <div className="flex gap-2 items-center">
-                          <input type="text" value={projFormQvImgUrl} onChange={(e) => setProjFormQvImgUrl(e.target.value)}
-                            placeholder="https://... or YouTube link"
-                            className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                          <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-2 py-2 rounded-lg border border-white/5 truncate">
+                            {projFormQvImgFile ? `Selected: ${projFormQvImgFile.name}` : (projFormQvImgUrl ? `Current: ${projFormQvImgUrl.split('/').pop()}` : 'No image selected')}
+                          </div>
                           <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                            {uploadingState['projFormQvImgUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                            <span>Choose File</span>
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={(e) => handleFileUpload(e, 'projFormQvImgUrl', setProjFormQvImgUrl)}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setProjFormQvImgFile(file);
+                              }}
                               className="hidden"
-                              disabled={uploadingState['projFormQvImgUrl']}
                             />
                           </label>
                         </div>
@@ -1590,8 +1927,10 @@ export default function AdminPage() {
                     {projFormImages.length > 0 && (
                       <div className="space-y-1.5">
                         {projFormImages.map((img, i) => (
-                          <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/3 border border-white/8 gap-2">
-                            <span className="text-[10px] text-zinc-400 truncate flex-1">{img.url}</span>
+                          <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/3 border border-white/8 gap-2 font-mono">
+                            <span className="text-[10px] text-zinc-400 truncate flex-1">
+                              {img.file ? `Selected: ${img.file.name}` : (img.url ? img.url.split('/').pop() : 'Unknown Image')}
+                            </span>
                             <button type="button" onClick={() => handleRemoveImage(i)}
                               className="text-red-400 hover:text-red-300 cursor-pointer flex-shrink-0"><Trash2 size={11} /></button>
                           </div>
@@ -1600,17 +1939,19 @@ export default function AdminPage() {
                     )}
                     <div className="p-3 rounded-xl bg-zinc-950/40 border border-white/5 space-y-2">
                       <div className="flex gap-2 items-center">
-                        <input type="text" value={projFormImgUrl} onChange={(e) => setProjFormImgUrl(e.target.value)}
-                          placeholder="Image URL or YouTube link"
-                          className="flex-grow bg-zinc-950/50 text-white placeholder-zinc-700 text-xs px-2 py-2 rounded-lg border border-white/5 focus:outline-none" />
+                        <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-2 py-2 rounded-lg border border-white/5 truncate">
+                          {projFormImgFile ? `Selected: ${projFormImgFile.name}` : 'No image selected'}
+                        </div>
                         <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                          {uploadingState['projFormImgUrl'] ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : 'Upload'}
+                          <span>Choose File</span>
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={(e) => handleFileUpload(e, 'projFormImgUrl', setProjFormImgUrl)}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) setProjFormImgFile(file);
+                            }}
                             className="hidden"
-                            disabled={uploadingState['projFormImgUrl']}
                           />
                         </label>
                       </div>
@@ -1740,58 +2081,267 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* TAB CONTENT: COMMANDS MANAGEMENT */}
+        {activeTab === 'commands' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* LEFT: Add/Edit Command Form */}
+            <div className="lg:col-span-1 bg-zinc-900/40 border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-2xl space-y-6">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-white uppercase flex items-center gap-2">
+                  {editingCmd ? 'Edit Chat Command' : 'Add Chat Command'}
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Define trigger commands and responses for Twitch chat.</p>
+              </div>
+
+              <form onSubmit={handleCommandSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Command Name</label>
+                  <input
+                    type="text"
+                    value={cmdName}
+                    onChange={(e) => setCmdName(e.target.value)}
+                    placeholder="e.g. !discord"
+                    className="w-full bg-zinc-950/40 text-white placeholder-zinc-700 text-sm px-4 py-2.5 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Permission Level</label>
+                  <select
+                    value={cmdPermission}
+                    onChange={(e) => setCmdPermission(e.target.value as any)}
+                    className="w-full bg-zinc-950/40 text-white text-sm px-4 py-2.5 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none cursor-pointer"
+                  >
+                    <option value="everyone" className="bg-zinc-950">Everyone</option>
+                    <option value="moderator" className="bg-zinc-950">Moderator</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Response Message</label>
+                  <textarea
+                    value={cmdResponse}
+                    onChange={(e) => setCmdResponse(e.target.value)}
+                    placeholder="Message bot will send back to chat..."
+                    rows={4}
+                    className="w-full bg-zinc-950/40 text-white placeholder-zinc-700 text-sm px-4 py-2.5 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Aliases (comma separated)</label>
+                  <input
+                    type="text"
+                    value={cmdAliases}
+                    onChange={(e) => setCmdAliases(e.target.value)}
+                    placeholder="e.g. !dc, !chat"
+                    className="w-full bg-zinc-950/40 text-white placeholder-zinc-700 text-sm px-4 py-2.5 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  {editingCmd && (
+                    <button
+                      type="button"
+                      onClick={clearCommandForm}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white transition-all cursor-pointer text-center"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : editingCmd ? 'Save Changes' : <><Plus size={14} /> Add Command</>}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* RIGHT: Commands List */}
+            <div className="lg:col-span-2 bg-zinc-900/40 border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-2xl space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                <div>
+                  <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">Commands Directory ({commandsList.length})</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">Alphabetically ordered stream command list.</p>
+                </div>
+                <Link href="/stream/commands" target="_blank"
+                  className="text-[10px] text-zinc-400 hover:text-white bg-zinc-950/50 px-3 py-1.5 rounded-lg border border-white/5 transition-colors">View Live ↗</Link>
+              </div>
+
+              {commandsLoading ? (
+                <div className="py-20 flex flex-col items-center gap-2 text-zinc-500 text-xs">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                  <span>Loading directory database...</span>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[700px] overflow-y-auto pr-1">
+                  {commandsList.map((cmd) => (
+                    <div key={cmd.id}
+                      className="flex items-start justify-between p-3.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:border-white/10 transition-all gap-3 group">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs font-mono font-black text-cyan-400">{cmd.name}</h4>
+                            {cmd.aliases && cmd.aliases.length > 0 && (
+                              <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-white/5">
+                                +{cmd.aliases.length} ({cmd.aliases.join(', ')})
+                              </span>
+                            )}
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${cmd.permission === 'moderator' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-zinc-800/60 text-zinc-500 border border-white/5'}`}>
+                              {cmd.permission}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 leading-relaxed font-mono truncate max-w-[400px]">{cmd.response}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={() => handleEditCommandClick(cmd)}
+                          className="p-2 rounded-lg bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer" title="Edit Command">
+                          <Edit2 size={12} /></button>
+                        <button onClick={() => handleDeleteCommand(cmd.id)}
+                          className="p-2 rounded-lg bg-red-500/5 border border-red-500/10 text-red-400 hover:text-white hover:bg-red-500 transition-all cursor-pointer" title="Delete Command">
+                          <Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  ))}
+                  {commandsList.length === 0 && (
+                    <div className="py-20 text-center text-zinc-500 text-xs font-semibold">
+                      No chat commands stored in Firestore.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TAB CONTENT: USERS LIST */}
         {activeTab === 'users' && (
-          <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
-              <h2 className="text-sm font-bold tracking-wide uppercase text-zinc-400">
-                Registered Streamers & Viewers ({users.length})
-              </h2>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-widest">Firestore synchronized</span>
+          <div className="bg-zinc-900/40 border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-2xl hover:border-purple-500/10 transition-all duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-white/10 mb-6 gap-3">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                  Registered Streamers & Viewers
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Manage user profiles and active subscriptions.</p>
+              </div>
+              <span className="text-[10px] text-purple-400 font-extrabold uppercase tracking-widest bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full self-start sm:self-center">
+                {users.length} Users
+              </span>
             </div>
 
             {usersLoading ? (
-              <div className="py-12 flex flex-col items-center gap-2 text-zinc-500 text-xs">
-                <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
-                <span>Loading users...</span>
+              <div className="py-20 flex flex-col items-center gap-3 text-zinc-500 text-sm">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                <span>Fetching directory database...</span>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-white/5 bg-zinc-950/20">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-white/5 text-zinc-500 font-bold uppercase tracking-wider">
-                      <th className="py-3 px-4">User</th>
-                      <th className="py-3 px-4">Email</th>
-                      <th className="py-3 px-4">Connected via</th>
-                      <th className="py-3 px-4">Platform Role</th>
-                      <th className="py-3 px-4">Firebase UID</th>
-                      <th className="py-3 px-4 text-right">Last Login</th>
+                    <tr className="border-b border-white/10 bg-white/[0.02] text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-4 px-5">User</th>
+                      <th className="py-4 px-5">Email</th>
+                      <th className="py-4 px-5">Login Methods</th>
+                      <th className="py-4 px-5">Roles</th>
+                      <th className="py-4 px-5">Premium Status</th>
+                      <th className="py-4 px-5">Firebase UID</th>
+                      <th className="py-4 px-5 text-right">Last Login</th>
+                      <th className="py-4 px-5 text-right">Created At</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
-                        <td className="py-3 px-4 flex items-center gap-2.5">
-                          <img src={u.avatar} alt={u.username} className="h-8 w-8 rounded-lg border border-white/10 bg-zinc-950" />
-                          <span className="font-bold text-white">{u.username}</span>
-                        </td>
-                        <td className="py-3 px-4 text-zinc-300 font-medium">{u.email || <span className="text-zinc-600 font-italic">N/A</span>}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.infoSource === 'twitch' ? 'bg-[#9146ff]/10 text-[#a970ff]' : u.infoSource === 'discord' ? 'bg-[#5865f2]/10 text-[#7289da]' : 'bg-purple-500/10 text-purple-400'}`}>
-                            {u.infoSource || 'email'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-zinc-400 font-semibold">{u.role}</td>
-                        <td className="py-3 px-4 font-mono text-zinc-500 text-[10px] select-all">{u.userId}</td>
-                        <td className="py-3 px-4 text-zinc-400 text-right">
-                          {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'N/A'}
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map((u) => {
+                      const activeTier = userSubscriptions[u.userId]?.tier || 0;
+                      
+                      // Identify linked login methods
+                      const methods = [];
+                      if (u.googleUsername) methods.push('google');
+                      if (u.twitchUsername) methods.push('twitch');
+                      if (u.discordUsername) methods.push('discord');
+                      if (methods.length === 0 && u.infoSource && u.infoSource !== 'email') {
+                        methods.push(u.infoSource);
+                      }
+
+                      return (
+                        <tr key={u.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                          <td className="py-4 px-5 flex items-center gap-3">
+                            <img src={u.avatar} alt={u.username} className="h-9 w-9 rounded-xl border border-white/10 bg-zinc-950 group-hover:scale-105 transition-transform" />
+                            <span className="font-extrabold text-white text-sm">{u.username}</span>
+                          </td>
+                          <td className="py-4 px-5 text-zinc-300 font-medium">{u.email || <span className="text-zinc-600 font-italic">N/A</span>}</td>
+                          <td className="py-4 px-5">
+                            <div className="flex flex-wrap gap-1">
+                              {methods.map((method) => (
+                                <span 
+                                  key={method}
+                                  className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                    method === 'twitch' ? 'bg-[#9146ff]/10 text-[#a970ff] border border-[#9146ff]/20' : 
+                                    method === 'discord' ? 'bg-[#5865f2]/10 text-[#7289da] border border-[#5865f2]/20' : 
+                                    method === 'google' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                    'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                  }`}
+                                >
+                                  {method}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-4 px-5">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                {u.role || 'User'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-5">
+                            <select
+                              value={activeTier}
+                              disabled={actionLoading}
+                              onChange={(e) => handleUpdateUserSubscription(u, parseInt(e.target.value))}
+                              className={`border text-[11px] rounded-lg px-2.5 py-1 focus:outline-none font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                                activeTier === 3 ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                                activeTier === 2 ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' :
+                                activeTier === 1 ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' :
+                                'bg-zinc-900/60 border-white/5 text-zinc-400'
+                              }`}
+                            >
+                              <option value={0} className="bg-zinc-950 text-zinc-400 font-bold">None</option>
+                              <option value={1} className="bg-zinc-950 text-purple-400 font-bold">Tier 1</option>
+                              <option value={2} className="bg-zinc-950 text-cyan-400 font-bold">Tier 2</option>
+                              <option value={3} className="bg-zinc-950 text-amber-400 font-bold">Tier 3 (Supporter)</option>
+                            </select>
+                          </td>
+                          <td className="py-4 px-5 font-mono text-[11px]">
+                            <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-white/10 px-2.5 py-1.5 rounded-xl w-fit group/uid">
+                              <span className="text-zinc-300 font-bold">{u.userId.substring(0, 8)}...{u.userId.substring(u.userId.length - 8)}</span>
+                              <button
+                                onClick={() => handleCopy(u.userId)}
+                                className="text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                                title="Copy Full Firebase UID"
+                              >
+                                {copiedId === u.userId ? (
+                                  <Check size={12} className="text-emerald-400" />
+                                ) : (
+                                  <Copy size={12} className="group-hover/uid:scale-105 transition-transform" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 text-zinc-400 text-right font-medium">
+                            <div className="text-white font-bold">{u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'N/A'}</div>
+                          </td>
+                          <td className="py-4 px-5 text-zinc-400 text-right font-medium">
+                            <div className="text-white font-bold">{u.createdAt ? new Date(u.createdAt).toLocaleString() : 'N/A'}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
 
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-zinc-500">
+                        <td colSpan={8} className="py-16 text-center text-zinc-500 text-sm font-semibold">
                           No users registered in database.
                         </td>
                       </tr>
