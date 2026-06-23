@@ -214,6 +214,7 @@ export default function AdminPage() {
   const [cmdPermission, setCmdPermission] = useState<'everyone' | 'moderator'>('everyone');
   const [cmdResponse, setCmdResponse] = useState('');
   const [cmdAliases, setCmdAliases] = useState('');
+  const [cmdKind, setCmdKind] = useState<'general' | 'socials' | 'games' | 'fun'>('general');
   const [editingCmd, setEditingCmd] = useState<any | null>(null);
   const [commandsList, setCommandsList] = useState<any[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(false);
@@ -640,6 +641,7 @@ export default function AdminPage() {
     setCmdPermission('everyone');
     setCmdResponse('');
     setCmdAliases('');
+    setCmdKind('general');
     setEditingCmd(null);
   };
 
@@ -677,6 +679,7 @@ export default function AdminPage() {
         permission: cmdPermission,
         response: cmdResponse.trim(),
         aliases: parsedAliases,
+        kind: cmdKind,
         createdAt: editingCmd?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }, { merge: true });
@@ -728,7 +731,8 @@ export default function AdminPage() {
     setCmdName(cmd.name);
     setCmdPermission(cmd.permission || 'everyone');
     setCmdResponse(cmd.response);
-    setCmdAliases((cmd.aliases || []).join(', '));
+    setCmdAliases(cmd.aliases ? cmd.aliases.join(', ') : '');
+    setCmdKind(cmd.kind || 'general');
   };
 
   const clearForm = () => {
@@ -2118,6 +2122,20 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Command Type (Kind)</label>
+                  <select
+                    value={cmdKind}
+                    onChange={(e) => setCmdKind(e.target.value as any)}
+                    className="w-full bg-zinc-950/40 text-white text-sm px-4 py-2.5 rounded-xl border border-white/5 focus:border-purple-500/40 focus:outline-none cursor-pointer"
+                  >
+                    <option value="general" className="bg-zinc-950">General</option>
+                    <option value="socials" className="bg-zinc-950">Socials</option>
+                    <option value="games" className="bg-zinc-950">Games</option>
+                    <option value="fun" className="bg-zinc-950">Fun</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Response Message</label>
                   <textarea
                     value={cmdResponse}
@@ -2190,8 +2208,15 @@ export default function AdminPage() {
                                 +{cmd.aliases.length} ({cmd.aliases.join(', ')})
                               </span>
                             )}
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${cmd.permission === 'moderator' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-zinc-800/60 text-zinc-500 border border-white/5'}`}>
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                              cmd.permission === 'moderator' 
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                : 'bg-zinc-800/60 text-zinc-400 border border-white/5'
+                            }`}>
                               {cmd.permission}
+                            </span>
+                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                              {cmd.kind || 'general'}
                             </span>
                           </div>
                           <p className="text-[11px] text-zinc-400 leading-relaxed font-mono truncate max-w-[400px]">{cmd.response}</p>

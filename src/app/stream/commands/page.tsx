@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Navbar from '@/components/Navbar';
-import { Copy, Check, Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { db } from '@/utils/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
@@ -12,6 +11,7 @@ interface ChatCommand {
   permission: 'everyone' | 'moderator';
   response: string;
   aliases?: string[];
+  kind?: 'general' | 'socials' | 'games' | 'fun';
 }
 
 export default function StreamCommandsPage() {
@@ -19,6 +19,7 @@ export default function StreamCommandsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [commands, setCommands] = useState<ChatCommand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'socials' | 'games' | 'fun'>('all');
 
   useEffect(() => {
     const cmdCol = collection(db, 'commands');
@@ -45,11 +46,25 @@ export default function StreamCommandsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filteredCommands = commands.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    (c.aliases && c.aliases.some(a => a.toLowerCase().includes(search.toLowerCase()))) ||
-    c.response.toLowerCase().includes(search.toLowerCase())
-  );
+  const allCount = commands.length;
+  const generalCount = commands.filter(c => (c.kind || 'general') === 'general').length;
+  const socialsCount = commands.filter(c => c.kind === 'socials').length;
+  const gamesCount = commands.filter(c => c.kind === 'games').length;
+  const funCount = commands.filter(c => c.kind === 'fun').length;
+
+  const filteredCommands = commands
+    .filter(c => {
+      if (activeTab === 'general') return (c.kind || 'general') === 'general';
+      if (activeTab === 'socials') return c.kind === 'socials';
+      if (activeTab === 'games') return c.kind === 'games';
+      if (activeTab === 'fun') return c.kind === 'fun';
+      return true;
+    })
+    .filter(c => 
+      c.name.toLowerCase().includes(search.toLowerCase()) || 
+      (c.aliases && c.aliases.some(a => a.toLowerCase().includes(search.toLowerCase()))) ||
+      c.response.toLowerCase().includes(search.toLowerCase())
+    );
 
   return (
     <div className="space-y-8">
@@ -60,6 +75,31 @@ export default function StreamCommandsPage() {
             Twitch Chat Commands
           </h2>
           <p className="text-xs text-zinc-400 mt-1">Explore custom chat triggers and bot responses in real-time.</p>
+        </div>
+
+        {/* Dynamic counts tabs */}
+        <div className="flex flex-wrap gap-4 sm:gap-6 border-b border-white/5 pb-0.5">
+          {[
+            { id: 'all', label: 'All commands', count: allCount },
+            { id: 'general', label: 'General', count: generalCount },
+            { id: 'socials', label: 'Socials', count: socialsCount },
+            { id: 'games', label: 'Games', count: gamesCount },
+            { id: 'fun', label: 'Fun', count: funCount }
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className="pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider relative transition-all cursor-pointer whitespace-nowrap text-white"
+              >
+                {tab.label} <span className={`font-mono text-xs ml-1 ${isActive ? 'text-purple-300' : 'text-zinc-300'}`}>({tab.count})</span>
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
+                )}
+              </button>
+            );
+          })}
         </div>
         
         <input
@@ -78,6 +118,19 @@ export default function StreamCommandsPage() {
         </div>
       ) : (
         <div className="bg-zinc-900/30 border border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md">
+          {/* Table Headers */}
+          <div className="grid grid-cols-12 border-b border-white/10 py-4 px-6 text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/[0.01]">
+            <div className="col-span-4 md:col-span-3 flex items-center gap-1">
+              COMMAND <span className="text-[8px] text-zinc-600">♢</span>
+            </div>
+            <div className="col-span-4 md:col-span-3 flex items-center justify-start md:justify-center gap-1">
+              PERMISSIONS <span className="text-[8px] text-zinc-600">♢</span>
+            </div>
+            <div className="col-span-4 md:col-span-6">
+              RESPONSE
+            </div>
+          </div>
+
           {filteredCommands.length > 0 ? (
             <div className="divide-y divide-white/5">
               {filteredCommands.map((item) => {
@@ -85,20 +138,21 @@ export default function StreamCommandsPage() {
                 return (
                   <div 
                     key={item.id} 
-                    className="grid grid-cols-1 md:grid-cols-12 items-center py-4 px-6 gap-4 hover:bg-white/[0.01] transition-colors"
+                    className="grid grid-cols-12 items-center py-4 px-6 gap-3 hover:bg-white/[0.01] transition-colors"
                   >
                     {/* Command & Aliases */}
-                    <div className="md:col-span-3 flex items-center gap-2">
+                    <div className="col-span-4 md:col-span-3 flex items-center gap-2">
                       <span 
                         onClick={() => handleCopy(item.name)}
-                        className="text-sm font-black text-cyan-400 font-mono cursor-pointer hover:text-cyan-300 transition-colors"
+                        className="text-sm font-black text-white font-mono cursor-pointer hover:text-purple-300 transition-colors"
+                        title={copiedId === item.name ? "Copied!" : "Click to Copy Command"}
                       >
                         {item.name}
                       </span>
                       
                       {hasAliases && (
                         <div className="relative group/tooltip inline-block">
-                          <span className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-help font-bold select-none">
+                          <span className="text-[10px] font-black text-zinc-500 hover:text-zinc-300 transition-colors bg-white/[0.03] hover:bg-white/[0.08] px-1.5 py-0.5 rounded border border-white/5 cursor-help select-none">
                             +{item.aliases!.length}
                           </span>
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block bg-zinc-950/90 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-mono text-zinc-300 whitespace-nowrap z-50 shadow-2xl select-all">
@@ -106,15 +160,21 @@ export default function StreamCommandsPage() {
                           </div>
                         </div>
                       )}
+                      
+                      {copiedId === item.name && (
+                        <span className="text-[9px] text-emerald-400 font-bold animate-pulse font-sans">
+                          Copied!
+                        </span>
+                      )}
                     </div>
 
                     {/* Permission Badge */}
-                    <div className="md:col-span-2 flex justify-start md:justify-center">
+                    <div className="col-span-4 md:col-span-3 flex justify-start md:justify-center">
                       <span 
-                        className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
+                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider select-none border ${
                           item.permission === 'moderator' 
-                            ? 'bg-red-500/10 text-red-400 border-red-500/20' 
-                            : 'bg-white/5 text-zinc-400 border-white/5'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                            : 'bg-zinc-800/80 text-zinc-400 border-zinc-700/30'
                         }`}
                       >
                         {item.permission}
@@ -122,23 +182,10 @@ export default function StreamCommandsPage() {
                     </div>
 
                     {/* Response Text */}
-                    <div className="md:col-span-6 text-xs text-zinc-300 font-mono leading-relaxed break-words">
-                      {item.response}
-                    </div>
-
-                    {/* Copy Action Button */}
-                    <div className="md:col-span-1 flex justify-end">
-                      <button
-                        onClick={() => handleCopy(item.name)}
-                        className="h-8 w-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
-                        title="Copy Command Name"
-                      >
-                        {copiedId === item.name ? (
-                          <Check size={14} className="text-emerald-400" />
-                        ) : (
-                          <Copy size={14} />
-                        )}
-                      </button>
+                    <div className="col-span-4 md:col-span-6">
+                      <div className="text-xs text-zinc-300 font-mono leading-relaxed break-all md:break-words">
+                        {item.response}
+                      </div>
                     </div>
                   </div>
                 );
