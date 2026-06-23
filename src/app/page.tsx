@@ -29,31 +29,12 @@ interface Supporter {
 }
 
 export default function Home() {
-  const [isLive, setIsLive] = useState(false);
-  const [checkingLive, setCheckingLive] = useState(true);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
   const [supportersLoading, setSupportersLoading] = useState(true);
   const { downloads, isLoading: downloadsLoading } = useDownloads();
   const { news, isLoading: newsLoading } = useNews();
 
   const carouselRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    async function checkLiveStatus() {
-      try {
-        const res = await fetch('/.netlify/functions/get-twitch-status');
-        if (res.ok) {
-          const data = await res.json();
-          setIsLive(data.isLive);
-        }
-      } catch (err) {
-        console.error('Failed to fetch Twitch live status:', err);
-      } finally {
-        setCheckingLive(false);
-      }
-    }
-    checkLiveStatus();
-  }, []);
 
   useEffect(() => {
     async function fetchSupporters() {
@@ -98,19 +79,6 @@ export default function Home() {
           
           {/* ================= HERO SECTION (TOP THING WITH SOME INFOS) ================= */}
           <section className="relative py-8 md:py-16 flex flex-col items-center justify-center text-center space-y-8 max-w-4xl mx-auto">
-            {/* Live Indicator */}
-            {!checkingLive && isLive && (
-              <a 
-                href="https://twitch.tv/primewaaag"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider animate-pulse hover:bg-red-500/20 transition-all cursor-pointer"
-              >
-                <span className="h-2 w-2 rounded-full bg-red-500" />
-                Live on Twitch Now
-              </a>
-            )}
-
             <div className="space-y-4">
               <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-none uppercase bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
                 Elevate Your Live Stream
