@@ -25,7 +25,7 @@ export default function RootLayout({
       <body className={`${plusJakarta.className} antialiased h-full flex flex-col`}>
         <AuthProvider>
           <div className="flex flex-col min-h-screen w-full flex-grow">
-            <div className="flex-grow">
+            <div className="flex-grow relative z-20">
               {children}
             </div>
             <Footer />

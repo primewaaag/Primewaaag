@@ -226,10 +226,14 @@ export default function AdminPage() {
   const [projFormQvImgFile, setProjFormQvImgFile] = useState<File | null>(null);
   const [projFormImgFile, setProjFormImgFile] = useState<File | null>(null);
 
-  const uploadFileToStorage = async (file: File): Promise<string> => {
+  const uploadFileToStorage = async (file: File, folderPath: string = 'uploads', returnUrl: boolean = true): Promise<string> => {
     const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-    const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+    const path = `${folderPath}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
     const snapshot = await uploadBytes(storageRef, file);
+    if (!returnUrl) {
+      return path;
+    }
     return await getDownloadURL(snapshot.ref);
   };
 
@@ -384,14 +388,14 @@ export default function AdminPage() {
       let finalQvImgUrl = projFormQvImgUrl;
       if (projFormQvImgEnabled && projFormQvImgFile) {
         setApiSuccess('Uploading Quick View Image...');
-        finalQvImgUrl = await uploadFileToStorage(projFormQvImgFile);
+        finalQvImgUrl = await uploadFileToStorage(projFormQvImgFile, 'images/projects');
       }
 
       const finalImages = [];
       for (const img of projFormImages) {
         if (img.file) {
           setApiSuccess(`Uploading project image: ${img.file.name}...`);
-          const uploadedUrl = await uploadFileToStorage(img.file);
+          const uploadedUrl = await uploadFileToStorage(img.file, 'images/projects');
           finalImages.push({
             url: uploadedUrl,
             redirectLink: img.redirectLink,
@@ -497,29 +501,26 @@ export default function AdminPage() {
           return next;
         });
       } else {
-        let subId;
+        const subId = targetUser.userId;
         const targetPricePaid = newTier === 1 ? 10 : newTier === 2 ? 25 : 50;
 
-        if (!subSnap.empty) {
-          // Update the existing document
-          const docSnap = subSnap.docs[0];
-          subId = docSnap.id;
-          await setDoc(doc(db, 'premium', subId), {
-            tier: newTier,
-            pricePaid: targetPricePaid
-          }, { merge: true });
-        } else {
-          // Create new subscription document (no status field)
-          subId = `sub_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await setDoc(doc(db, 'premium', subId), {
-            id: subId,
-            userId: targetUser.userId,
-            tier: newTier,
-            pricePaid: targetPricePaid,
-            createdAt: new Date().toISOString(),
-            expiresAt: null
-          });
+        // Clean up old random sub document if it existed under a different ID
+        if (!subSnap.empty && subSnap.docs[0].id !== subId) {
+          try {
+            await deleteDoc(doc(db, 'premium', subSnap.docs[0].id));
+          } catch (e) {
+            console.error('Failed to delete legacy premium document:', e);
+          }
         }
+
+        await setDoc(doc(db, 'premium', subId), {
+          id: subId,
+          userId: targetUser.userId,
+          tier: newTier,
+          pricePaid: targetPricePaid,
+          createdAt: !subSnap.empty ? (subSnap.docs[0].data().createdAt || new Date().toISOString()) : new Date().toISOString(),
+          expiresAt: null
+        }, { merge: true });
 
         // Create order document in orders collection
         const orderId = `order_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -751,6 +752,7 @@ export default function AdminPage() {
     setFormCopyBtnText('Copy URL');
     setFormActions([]);
     clearActionForm();
+    setFormImageFile(null);
     setEditingDl(null);
   };
 
@@ -792,14 +794,16 @@ export default function AdminPage() {
       let finalImageUrl = formImageUrl;
       if (formImageFile) {
         setApiSuccess('Uploading Cover Image...');
-        finalImageUrl = await uploadFileToStorage(formImageFile);
+        finalImageUrl = await uploadFileToStorage(formImageFile, 'images/downloads');
       }
 
       const finalActions = [];
       for (const act of formActions) {
         if (act.type === 'file' && act.file) {
           setApiSuccess(`Uploading Action File: ${act.file.name}...`);
-          const uploadedUrl = await uploadFileToStorage(act.file);
+          const isPremiumCat = formCategory === 'premium' || formCategory === 'early-access';
+          const folderPath = isPremiumCat ? 'downloads/premium' : 'downloads/free';
+          const uploadedUrl = await uploadFileToStorage(act.file, folderPath, !isPremiumCat);
           finalActions.push({
             id: act.id,
             type: act.type,
@@ -863,6 +867,19 @@ export default function AdminPage() {
     }
   };
 
+  const deleteFileFromStorage = async (url: string) => {
+    if (!url || !url.includes('firebasestorage.googleapis.com')) return;
+    try {
+      const { ref: storageRef, deleteObject } = await import('firebase/storage');
+      // Extract path or reference using the URL
+      const fileRef = storageRef(storage, url);
+      await deleteObject(fileRef);
+      console.log('Successfully deleted file:', url);
+    } catch (err) {
+      console.error('Failed to delete file from storage:', url, err);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm(`Are you sure you want to delete download ID: ${id}?`)) return;
 
@@ -871,6 +888,27 @@ export default function AdminPage() {
     setActionLoading(true);
 
     try {
+      // Find the download item to get its file URLs
+      const itemToDelete = downloads.find(dl => dl.id === id);
+      if (itemToDelete) {
+        // Delete cover image
+        if (itemToDelete.imageUrl) {
+          await deleteFileFromStorage(itemToDelete.imageUrl);
+        }
+        // Delete legacy fileUrl
+        if (itemToDelete.fileUrl) {
+          await deleteFileFromStorage(itemToDelete.fileUrl);
+        }
+        // Delete action files
+        if (itemToDelete.actions) {
+          for (const act of itemToDelete.actions) {
+            if (act.fileUrl) {
+              await deleteFileFromStorage(act.fileUrl);
+            }
+          }
+        }
+      }
+
       const response = await fetch('/.netlify/functions/manage-downloads', {
         method: 'DELETE',
         headers: {
@@ -908,6 +946,7 @@ export default function AdminPage() {
     setNewsFormDate(getTodayDateString());
     setNewsFormMediaUrl('');
     setNewsFormReadMoreUrl('');
+    setNewsFormMediaFile(null);
     setEditingNews(null);
   };
 
@@ -941,7 +980,7 @@ export default function AdminPage() {
       let finalMediaUrl = newsFormMediaUrl;
       if (newsFormMediaFile) {
         setApiSuccess('Uploading Media Image...');
-        finalMediaUrl = await uploadFileToStorage(newsFormMediaFile);
+        finalMediaUrl = await uploadFileToStorage(newsFormMediaFile, 'images/news');
       }
 
       const response = await fetch('/.netlify/functions/manage-news', {
@@ -1207,22 +1246,41 @@ export default function AdminPage() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Cover Image</label>
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-3 py-2.5 rounded-lg border border-white/5 truncate">
-                      {formImageFile ? `Selected: ${formImageFile.name}` : (formImageUrl ? `Current: ${formImageUrl.split('/').pop()}` : 'No image selected')}
-                    </div>
-                    <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                      <span>Choose File</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) setFormImageFile(file);
-                        }}
-                        className="hidden"
-                      />
-                    </label>
+                  <div className="flex items-center gap-3">
+                    {formImageFile || formImageUrl ? (
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 bg-zinc-950/50 group/preview shrink-0">
+                        <img
+                          src={formImageFile ? URL.createObjectURL(formImageFile) : formImageUrl}
+                          alt="Cover Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormImageFile(null);
+                            setFormImageUrl('');
+                          }}
+                          className="absolute inset-0 bg-black/65 opacity-0 group-hover/preview:opacity-100 transition-all duration-200 flex items-center justify-center text-red-450 hover:text-red-400 cursor-pointer"
+                          title="Remove Cover Image"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center h-[38px] px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all w-full">
+                        <span>Choose Cover Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setFormImageFile(file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -1304,6 +1362,7 @@ export default function AdminPage() {
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) setActionFileFile(file);
+                                  e.target.value = '';
                                 }}
                                 className="hidden"
                               />
@@ -1453,43 +1512,21 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        <div className="relative flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(openMenuId === dl.id ? null : dl.id);
-                            }}
+                            onClick={() => handleEditClick(dl)}
                             className="p-2 rounded-lg bg-zinc-950/40 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer"
-                            title="Options"
+                            title="Edit Details"
                           >
-                            <MoreVertical size={14} />
+                            <Edit2 size={13} />
                           </button>
-
-                          {openMenuId === dl.id && (
-                            <div className="absolute right-0 mt-1.5 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-xl z-50 py-1.5 animate-fadeIn">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenMenuId(null);
-                                  handleEditClick(dl);
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-white/5 text-xs text-zinc-300 hover:text-white transition-colors"
-                              >
-                                Edit Details
-                              </button>
-
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenMenuId(null);
-                                  handleDelete(dl.id);
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-red-500/10 text-xs text-red-400 hover:text-red-300 transition-colors"
-                              >
-                                Delete Download
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            onClick={() => handleDelete(dl.id)}
+                            className="p-2 rounded-lg bg-zinc-950/40 border border-white/5 text-red-400 hover:text-red-300 hover:bg-zinc-900 transition-all cursor-pointer"
+                            title="Delete Download"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </div>
                     );
@@ -1587,22 +1624,41 @@ export default function AdminPage() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-500 tracking-wide uppercase">Media Image (Optional)</label>
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-3 py-2.5 rounded-lg border border-white/5 truncate">
-                      {newsFormMediaFile ? `Selected: ${newsFormMediaFile.name}` : (newsFormMediaUrl ? `Current: ${newsFormMediaUrl.split('/').pop()}` : 'No image selected')}
-                    </div>
-                    <label className="flex-shrink-0 flex items-center justify-center h-[38px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                      <span>Choose File</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) setNewsFormMediaFile(file);
-                        }}
-                        className="hidden"
-                      />
-                    </label>
+                  <div className="flex items-center gap-3">
+                    {newsFormMediaFile || newsFormMediaUrl ? (
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 bg-zinc-950/50 group/preview shrink-0">
+                        <img
+                          src={newsFormMediaFile ? URL.createObjectURL(newsFormMediaFile) : newsFormMediaUrl}
+                          alt="Media Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewsFormMediaFile(null);
+                            setNewsFormMediaUrl('');
+                          }}
+                          className="absolute inset-0 bg-black/65 opacity-0 group-hover/preview:opacity-100 transition-all duration-200 flex items-center justify-center text-red-450 hover:text-red-400 cursor-pointer"
+                          title="Remove Media Image"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center h-[38px] px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all w-full">
+                        <span>Choose Media Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setNewsFormMediaFile(file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -1875,22 +1931,41 @@ export default function AdminPage() {
                     <div className="space-y-2">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-zinc-600 uppercase">Cover Image</label>
-                        <div className="flex gap-2 items-center">
-                          <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-2 py-2 rounded-lg border border-white/5 truncate">
-                            {projFormQvImgFile ? `Selected: ${projFormQvImgFile.name}` : (projFormQvImgUrl ? `Current: ${projFormQvImgUrl.split('/').pop()}` : 'No image selected')}
-                          </div>
-                          <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                            <span>Choose File</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) setProjFormQvImgFile(file);
-                              }}
-                              className="hidden"
-                            />
-                          </label>
+                        <div className="flex items-center gap-3">
+                          {projFormQvImgFile || projFormQvImgUrl ? (
+                            <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 bg-zinc-950/50 group/preview shrink-0">
+                              <img
+                                src={projFormQvImgFile ? URL.createObjectURL(projFormQvImgFile) : projFormQvImgUrl}
+                                alt="Project Cover Preview"
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProjFormQvImgFile(null);
+                                  setProjFormQvImgUrl('');
+                                }}
+                                className="absolute inset-0 bg-black/65 opacity-0 group-hover/preview:opacity-100 transition-all duration-200 flex items-center justify-center text-red-450 hover:text-red-400 cursor-pointer"
+                                title="Remove Cover Image"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center h-[34px] px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all w-full">
+                              <span>Choose Cover Image</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) setProjFormQvImgFile(file);
+                                  e.target.value = '';
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -1942,22 +2017,40 @@ export default function AdminPage() {
                       </div>
                     )}
                     <div className="p-3 rounded-xl bg-zinc-950/40 border border-white/5 space-y-2">
-                      <div className="flex gap-2 items-center">
-                        <div className="flex-grow bg-zinc-950/50 text-zinc-400 text-xs px-2 py-2 rounded-lg border border-white/5 truncate">
-                          {projFormImgFile ? `Selected: ${projFormImgFile.name}` : 'No image selected'}
-                        </div>
-                        <label className="flex-shrink-0 flex items-center justify-center h-[34px] px-3.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all">
-                          <span>Choose File</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) setProjFormImgFile(file);
-                            }}
-                            className="hidden"
-                          />
-                        </label>
+                      <div className="flex items-center gap-3">
+                        {projFormImgFile ? (
+                          <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 bg-zinc-950/50 group/preview shrink-0">
+                            <img
+                              src={URL.createObjectURL(projFormImgFile)}
+                              alt="Project Image Preview"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProjFormImgFile(null);
+                              }}
+                              className="absolute inset-0 bg-black/65 opacity-0 group-hover/preview:opacity-100 transition-all duration-200 flex items-center justify-center text-red-450 hover:text-red-400 cursor-pointer"
+                              title="Remove Image"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center h-[34px] px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 hover:text-white cursor-pointer relative transition-all w-full">
+                            <span>Choose Image</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setProjFormImgFile(file);
+                                e.target.value = '';
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <input type="text" value={projFormImgRedirect} onChange={(e) => setProjFormImgRedirect(e.target.value)}

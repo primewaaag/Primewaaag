@@ -197,26 +197,23 @@ function CheckoutContent() {
       const q = query(premiumCol, where('userId', '==', user.userId));
       const snap = await getDocs(q);
 
-      let subId;
-      if (!snap.empty) {
-        // Upgrade existing document: only update tier and pricePaid
-        const existingDoc = snap.docs[0];
-        subId = existingDoc.id;
-        await setDoc(doc(db, 'premium', subId), {
-          tier: tier,
-          pricePaid: basePriceVal // Total value of this tier
-        }, { merge: true });
-      } else {
-        // Create new premium document (no status field)
-        subId = doc(collection(db, 'premium')).id;
-        await setDoc(doc(db, 'premium', subId), {
-          id: subId,
-          userId: user.userId,
-          tier: tier,
-          pricePaid: basePriceVal, // Total value of this tier
-          createdAt: new Date().toISOString()
-        });
+      const subId = user.userId;
+      // Clean up old random sub document if it existed under a different ID
+      if (!snap.empty && snap.docs[0].id !== subId) {
+        try {
+          await deleteDoc(doc(db, 'premium', snap.docs[0].id));
+        } catch (e) {
+          console.error('Failed to delete legacy premium document:', e);
+        }
       }
+
+      await setDoc(doc(db, 'premium', subId), {
+        id: subId,
+        userId: user.userId,
+        tier: tier,
+        pricePaid: basePriceVal, // Total value of this tier
+        createdAt: !snap.empty ? (snap.docs[0].data().createdAt || new Date().toISOString()) : new Date().toISOString()
+      }, { merge: true });
 
       // 3. Create order document in orders collection
       const orderId = doc(collection(db, 'orders')).id;

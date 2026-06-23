@@ -85,9 +85,9 @@ function CopyBox({ title, desc, text, buttonText, iconName }: { title: string, d
   );
 }
 
-function DownloadCard({ item, onClick }: { item: Download; onClick: () => void }) {
+function DownloadCard({ item }: { item: Download }) {
   return (
-    <div onClick={onClick} className="group flex flex-col space-y-4 cursor-pointer">
+    <Link href={`/downloads/${item.id}`} className="group flex flex-col space-y-4 cursor-pointer">
       {/* Image container */}
       <div className="w-full aspect-[4/5] rounded-3xl overflow-hidden bg-zinc-950 border border-white/5 relative transition-all duration-300 group-hover:border-purple-500/30 group-hover:shadow-[0_15px_40px_rgba(168,85,247,0.15)]">
         <img
@@ -112,7 +112,7 @@ function DownloadCard({ item, onClick }: { item: Download; onClick: () => void }
           )}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -120,7 +120,6 @@ function DownloadsContent() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('category');
   const { downloads, isLoading } = useDownloads();
-  const [selectedDownload, setSelectedDownload] = useState<Download | null>(null);
 
   const showAll = !categoryParam || (categoryParam !== 'free' && categoryParam !== 'premium' && categoryParam !== 'early-access');
 
@@ -200,7 +199,7 @@ function DownloadsContent() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-10">
                     {freeDl.map((item) => (
-                      <DownloadCard key={item.id} item={item} onClick={() => setSelectedDownload(item)} />
+                      <DownloadCard key={item.id} item={item} />
                     ))}
                   </div>
                 </div>
@@ -217,7 +216,7 @@ function DownloadsContent() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-10">
                     {premiumDl.map((item) => (
-                      <DownloadCard key={item.id} item={item} onClick={() => setSelectedDownload(item)} />
+                      <DownloadCard key={item.id} item={item} />
                     ))}
                   </div>
                 </div>
@@ -234,7 +233,7 @@ function DownloadsContent() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-10">
                     {earlyAccessDl.map((item) => (
-                      <DownloadCard key={item.id} item={item} onClick={() => setSelectedDownload(item)} />
+                      <DownloadCard key={item.id} item={item} />
                     ))}
                   </div>
                 </div>
@@ -251,7 +250,7 @@ function DownloadsContent() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-10 max-w-5xl mx-auto">
               {filteredDownloads.map((item) => (
-                <DownloadCard key={item.id} item={item} onClick={() => setSelectedDownload(item)} />
+                <DownloadCard key={item.id} item={item} />
               ))}
             </div>
           )}
@@ -259,118 +258,7 @@ function DownloadsContent() {
         </div>
       </div>
 
-      {/* DETAIL MODAL OVERLAY */}
-      {selectedDownload && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn"
-          onClick={() => setSelectedDownload(null)}
-        >
-          <div
-            className="bg-zinc-900/90 border border-white/10 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Top Image Banner */}
-            <div className="w-full h-52 bg-zinc-950 relative overflow-hidden">
-              <img
-                src={selectedDownload.imageUrl}
-                alt={selectedDownload.title}
-                className="w-full h-full object-cover opacity-80"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
 
-              {/* Close Button */}
-              <button
-                onClick={() => setSelectedDownload(null)}
-                className="absolute top-4 right-4 bg-zinc-900/80 hover:bg-zinc-800 text-white rounded-full p-2 border border-white/10 transition-all cursor-pointer"
-                title="Close"
-              >
-                <XIcon size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 uppercase tracking-wider">
-                    {selectedDownload.category}
-                  </span>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${selectedDownload.price === 'FREE' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
-                    } uppercase tracking-wider`}>
-                    {selectedDownload.price}
-                  </span>
-                </div>
-                <h3 className="text-xl font-black tracking-tight text-white uppercase">{selectedDownload.title}</h3>
-                {selectedDownload.description && (
-                  <p className="text-xs text-zinc-400 leading-relaxed">{selectedDownload.description}</p>
-                )}
-              </div>
-
-              {/* Action Box */}
-              {selectedDownload.actions && selectedDownload.actions.length > 0 ? (
-                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-                  {selectedDownload.actions.map((act) => {
-                    if (act.type === 'copy') {
-                      return (
-                        <CopyBox
-                          key={act.id}
-                          title={act.copyTitle || ''}
-                          desc={act.copyDesc || ''}
-                          text={act.copyText || ''}
-                          buttonText={act.copyBtnText || 'Copy URL'}
-                          iconName={act.copyIcon}
-                        />
-                      );
-                    } else {
-                      return (
-                        <div key={act.id} className="space-y-1">
-                          <a
-                            href={act.fileUrl}
-                            download
-                            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all shadow-lg hover:shadow-purple-500/20 cursor-pointer text-center"
-                          >
-                            <DownloadIcon size={14} /> {act.label || 'Download Asset'}
-                          </a>
-                        </div>
-                      );
-                    }
-                  })}
-                </div>
-              ) : (
-                /* Legacy fallback */
-                selectedDownload.downloadType === 'copy' ? (
-                  <CopyBox
-                    title={selectedDownload.copyTitle || ''}
-                    desc={selectedDownload.copyDesc || ''}
-                    text={selectedDownload.copyText || ''}
-                    buttonText={selectedDownload.copyBtnText || 'Copy URL'}
-                    iconName={selectedDownload.copyIcon}
-                  />
-                ) : (
-                  <div className="space-y-4">
-                    {selectedDownload.fileUrl ? (
-                      <a
-                        href={selectedDownload.fileUrl}
-                        download
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all shadow-lg hover:shadow-purple-500/20 cursor-pointer text-center"
-                      >
-                        <DownloadIcon size={14} /> Download Asset (Files)
-                      </a>
-                    ) : (
-                      <button
-                        disabled
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold bg-zinc-800 text-zinc-500 cursor-not-allowed text-center"
-                      >
-                        <DownloadIcon size={14} /> File Coming Soon
-                      </button>
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

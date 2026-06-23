@@ -517,8 +517,14 @@ export default function StreamRanksPage() {
 
       {/* 4. BRAWL STARS MATCH DETAIL OVERLAY MODAL */}
       {bsSelectedGame && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-modal-backdrop">
-          <div className="w-full max-w-xl bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-modal-card flex flex-col gap-6 max-h-[90vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-modal-backdrop"
+          onClick={() => setBsSelectedGame(null)}
+        >
+          <div 
+            className="w-full max-w-xl bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-modal-card flex flex-col gap-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
 
             {/* Header section */}
             <div className={`p-4 rounded-2xl relative overflow-hidden flex items-center justify-between border border-white/5 ${bsSelectedGame.result === 'WIN' ? 'bg-emerald-500/5' : 'bg-rose-500/5'}`}>
@@ -640,8 +646,14 @@ export default function StreamRanksPage() {
 
       {/* 5. VALORANT MATCH DETAIL OVERLAY MODAL */}
       {selectedGame && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-modal-backdrop">
-          <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-modal-card flex flex-col gap-6">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-modal-backdrop"
+          onClick={() => setSelectedGame(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-modal-card flex flex-col gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
 
             {/* Header section */}
             <div className={`p-4 rounded-2xl relative overflow-hidden flex items-center justify-between border border-white/5 ${selectedGame.result === 'WIN' ? 'bg-emerald-500/5' : 'bg-rose-500/5'}`}>

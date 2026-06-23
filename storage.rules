@@ -16,14 +16,33 @@ service firebase.storage {
              request.auth.token.email.lower() == 'marc.aeschbach@icloud.com';
     }
 
-    // Projects and downloads assets: readable by anyone, only writable by admin
+    // Helper function to check if the user is premium
+    function isPremium(userId) {
+      return firestore.exists(/databases/$(database)/documents/premium/$(userId)) &&
+             firestore.get(/databases/$(database)/documents/premium/$(userId)).data.tier >= 2;
+    }
+
+    // Projects assets: readable by anyone, only writable by admin
     match /projects/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    match /downloads/{allPaths=**} {
+    // Images (covers, news, gallery): readable by anyone, only writable by admin
+    match /images/{allPaths=**} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Free downloads: readable by anyone, only writable by admin
+    match /downloads/free/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Premium downloads: readable by premium users/admins, only writable by admin
+    match /downloads/premium/{allPaths=**} {
+      allow read: if isAdmin() || (request.auth != null && isPremium(request.auth.uid));
       allow write: if isAdmin();
     }
 
