@@ -35,9 +35,9 @@ export const handler: Handler = async (event) => {
     snapshot.forEach(doc => {
       const data = doc.data();
       supporters.push({
+        userId: data.userId || doc.id,
         username: data.username,
         avatar: data.avatar,
-        role: data.role || 'Supporter'
       });
     });
 

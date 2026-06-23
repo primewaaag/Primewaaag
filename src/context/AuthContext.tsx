@@ -12,7 +12,7 @@ import {
   linkWithPopup,
   unlink
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '@/utils/firebase';
 
 export interface User {
@@ -97,6 +97,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return url;
   };
 
+  const syncSupporterStatus = async (userId: string, username: string, avatar: string, role: string) => {
+    try {
+      const subQ = query(
+        collection(db, 'premium'),
+        where('userId', '==', userId),
+        where('status', '==', 'active')
+      );
+      const subSnap = await getDocs(subQ);
+      let isTier3 = false;
+      if (!subSnap.empty) {
+        const subData = subSnap.docs[0].data();
+        if (subData.tier === 3) {
+          isTier3 = true;
+        }
+      }
+
+      if (isTier3) {
+        await setDoc(doc(db, 'supporters', userId), {
+          userId: userId,
+          username: username,
+          avatar: avatar,
+        }, { merge: true });
+      } else {
+        await deleteDoc(doc(db, 'supporters', userId));
+      }
+    } catch (err) {
+      console.error('Error syncing supporter status:', err);
+    }
+  };
+
   // Helper to sync/create user document in Firestore
   const syncUserToFirestore = async (
     fbUser: FirebaseUser,
@@ -177,15 +207,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastLogin: new Date().toISOString(),
     }, { merge: true });
 
-    // Sync admin to public supporters collection
-    const resolvedRole = userData.role;
-    if (resolvedRole === 'Admin') {
-      await setDoc(doc(db, 'supporters', fbUser.uid), {
-        username: userData.username,
-        avatar: userData.avatar,
-        role: resolvedRole,
-      }, { merge: true });
-    }
+    // Sync admin or premium supporter to public supporters collection
+    await syncSupporterStatus(fbUser.uid, userData.username, userData.avatar, userData.role);
 
     setUser(userData);
   };
@@ -478,7 +501,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userRef = doc(db, 'users', user.userId);
       await setDoc(userRef, fields, { merge: true });
-      setUser(prev => prev ? { ...prev, ...fields } : null);
+      const updatedUser = { ...user, ...fields };
+      setUser(updatedUser);
+      await syncSupporterStatus(user.userId, updatedUser.username, updatedUser.avatar, updatedUser.role);
     } catch (err) {
       console.error('Failed to update user fields in Firestore:', err);
       throw err;
@@ -533,6 +558,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('primewaaag_session', JSON.stringify(parsed));
           } catch (e) {}
         }
+        await syncSupporterStatus(updatedUser.userId, updatedUser.username, updatedUser.avatar, updatedUser.role);
       }
     } catch (err) {
       console.error('Failed to refresh user fields from Firestore:', err);

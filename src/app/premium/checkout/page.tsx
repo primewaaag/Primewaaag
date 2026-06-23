@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Check, ChevronDown, Loader2, Award, CheckCircle, ShieldAlert, CreditCard, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { db } from '@/utils/firebase';
-import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc, deleteDoc } from 'firebase/firestore';
 
 function CheckoutContent() {
   const { user, isLoading: authLoading, loginOAuthPlatform, updateUserFields } = useAuth();
@@ -235,10 +235,16 @@ function CheckoutContent() {
       // 5. Add user to public supporters collection only if they are Tier 3
       if (tier === 3) {
         await setDoc(doc(db, 'supporters', user.userId), {
+          userId: user.userId,
           username: user.username,
           avatar: user.avatar,
-          role: `Tier ${tier} Member`,
         });
+      } else {
+        try {
+          await deleteDoc(doc(db, 'supporters', user.userId));
+        } catch (e) {
+          console.error('Failed to clean up supporter document:', e);
+        }
       }
 
       alert(`Checkout completed successfully! Welcome to Tier ${tier} Membership.`);

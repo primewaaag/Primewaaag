@@ -404,7 +404,7 @@ export default function Home() {
                   } else if (supporter.role === 'Twitch Subscriber') {
                     borderClass = 'border-purple-500/10 hover:border-purple-500/40 hover:shadow-purple-500/5';
                     ringColor = 'border-purple-500/20 group-hover:border-purple-500/60';
-                  } else if (supporter.role === 'Premium') {
+                  } else if (supporter.role === 'Premium' || (supporter.role && supporter.role.includes('Tier 3'))) {
                     borderClass = 'border-amber-500/10 hover:border-amber-500/40 hover:shadow-amber-500/5';
                     ringColor = 'border-amber-500/20 group-hover:border-amber-500/60';
                   }
