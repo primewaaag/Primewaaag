@@ -35,13 +35,11 @@ export default function StreamLayout({ children }: { children: React.ReactNode }
               <div className="absolute top-0 left-0 right-0 h-[1px] bg-linear-to-r from-transparent via-purple-500/20 to-transparent" />
               
               {/* Twitch Avatar / Website Logo */}
-              <div className="relative h-16 w-16 rounded-2xl bg-zinc-950 border border-white/10 flex items-center justify-center p-1 overflow-hidden shadow-lg group">
-                <img 
-                  src="/ProfilePicture.png" 
-                  alt="Primewaaag Logo" 
-                  className="h-full w-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-300 filter drop-shadow-[0_0_10px_rgba(168,85,247,0.3)]"
-                />
-              </div>
+              <img 
+                src="/ProfilePicture.png" 
+                alt="Primewaaag Logo" 
+                className="h-16 w-16 object-cover rounded-2xl shadow-lg hover:scale-105 transition-transform duration-300"
+              />
 
               <div>
                 <h3 className="text-base font-black text-white uppercase tracking-tight">Primewaaag</h3>

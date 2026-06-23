@@ -171,53 +171,37 @@ export default function Home() {
                 downloads.map((item) => (
                   <Link 
                     key={item.id} 
-                    href={`/downloads?category=${item.category}`}
-                    className="flex-shrink-0 w-[300px] snap-start group p-5 rounded-3xl glass-panel glass-panel-hover flex flex-col justify-between relative cursor-pointer overflow-hidden shadow-lg border border-white/5 hover:border-purple-500/20 transition-all duration-300"
+                    href="/downloads"
+                    className="flex-shrink-0 w-[300px] snap-start group flex flex-col space-y-4 cursor-pointer"
                   >
-                    {/* Image Header */}
-                    <div className="w-full rounded-2xl overflow-hidden border border-white/5 bg-zinc-950/40 aspect-video relative mb-4">
+                    {/* Image container */}
+                    <div className="w-full aspect-[4/5] rounded-3xl overflow-hidden bg-zinc-950 border border-white/5 relative transition-all duration-300 group-hover:border-purple-500/30 group-hover:shadow-[0_15px_40px_rgba(168,85,247,0.15)]">
                       {item.imageUrl ? (
                         <img
                           src={item.imageUrl}
                           alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-zinc-700 bg-zinc-900/30">
                           <DownloadIcon size={32} />
                         </div>
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/40 via-transparent to-transparent pointer-events-none" />
                     </div>
                     
-                    <div className="flex-grow flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          {item.price === 'FREE' ? (
-                            <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-emerald-400 bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                              FREE
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full uppercase border text-amber-400 bg-amber-500/5 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                              PREMIUM
-                            </span>
-                          )}
-                          <span className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">{item.category}</span>
-                        </div>
-                        
-                        <h3 className="font-black text-base text-white tracking-wide group-hover:text-purple-300 transition-colors mb-1.5 uppercase line-clamp-1">{item.title}</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{item.description || "Elevate live engagement layouts with intuitive interactive elements."}</p>
-                      </div>
-                      
-                      {/* Footer */}
-                      <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
-                        <div className="flex items-center gap-1.5">
-                          <img src="https://cdn.simpleicons.org/twitch/a970ff" alt="Twitch" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                          <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        <span className="text-xs font-bold text-purple-400 group-hover:text-purple-300 flex items-center gap-0.5 transition-colors">
-                          Get Asset <ArrowUpRight size={12} />
-                        </span>
-                      </div>
+                    {/* Text details underneath */}
+                    <div className="text-center space-y-1">
+                      <h3 className="font-bold text-sm text-zinc-200 group-hover:text-white transition-colors leading-snug uppercase tracking-wide">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs font-black tracking-widest uppercase">
+                        {item.price === 'FREE' ? (
+                          <span className="text-emerald-400">Free</span>
+                        ) : (
+                          <span className="text-amber-400">Premium</span>
+                        )}
+                      </p>
                     </div>
                   </Link>
                 ))
